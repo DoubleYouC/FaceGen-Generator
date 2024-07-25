@@ -5,10 +5,11 @@ unit FaceGen;
 
 var
     iPluginFile: IInterface;
-    bLightPlugin: Boolean;
+    bOnlyMissing: Boolean;
+    sResolution, sDiffuse, sNormal, sSpecular: string;
 
 const
-    sPatchName = 'FaceGen Generator.esp';
+    sPatchName = 'FaceGenPatch.esp';
 
 function Initialize: integer;
 {
@@ -22,6 +23,7 @@ begin
         Result := 1;
         Exit;
     end;
+
 
     Result := 0;
 end;
@@ -43,10 +45,21 @@ var
     btnStart, btnCancel: TButton;
     pnl: TPanel;
     gbOptions: TGroupBox;
-    chkLightPlugin: TCheckBox;
+    cbTextureSize, cbDiffuseFormat, cbNormalFormat, cbSpecularFormat: TComboBox;
+    rbOnlyMissing, rbAll: TRadioButton;
+    slResolutions, slTextureFormats: TStringList;
 begin
     frm := TForm.Create(nil);
     try
+        slResolutions := TStringList.Create;
+        slResolutions.Add('1024');
+        slResolutions.Add('2048');
+
+        slTextureFormats := TStringList.Create;
+        slTextureFormats.Add('BC1');
+        slTextureFormats.Add('BC5');
+        slTextureFormats.Add('BC7');
+
         frm.Caption := 'FaceGen Generator';
         frm.Width := 600;
         frm.Height := 200;
@@ -64,14 +77,68 @@ begin
         gbOptions.Caption := 'Options';
         gbOptions.Height := 134;
 
-        chkLightPlugin := TCheckBox.Create(gbOptions);
-        chkLightPlugin.Parent := gbOptions;
-        chkLightPlugin.Left := 16;
-        chkLightPlugin.Top := 30;
-        chkLightPlugin.Width := 120;
-        chkLightPlugin.Caption := 'Flag as ESL';
-        chkLightPlugin.Hint := 'Flags the output plugin as ESL.';
-        chkLightPlugin.ShowHint := True;
+        rbOnlyMissing := TRadioButton.Create(gbOptions);
+        rbOnlyMissing.Parent := gbOptions;
+        rbOnlyMissing.Left := 16;
+        rbOnlyMissing.Top := 30;
+        rbOnlyMissing.Width := 100;
+        rbOnlyMissing.Caption := 'Missing Only';
+        rbOnlyMissing.Checked := True;
+
+        rbAll := TRadioButton.Create(gbOptions);
+        rbAll.Parent := gbOptions;
+        rbAll.Left := rbOnlyMissing.Left + rbOnlyMissing.Width + 20;
+        rbAll.Top := rbOnlyMissing.Top;
+        rbAll.Width := 80;
+        rbAll.Caption := 'All';
+
+        cbTextureSize := TComboBox.Create(gbOptions);
+        cbTextureSize.Parent := gbOptions;
+        cbTextureSize.Left := 78;
+        cbTextureSize.Top := 60;
+        cbTextureSize.Width := 50;
+        cbTextureSize.Style := csDropDownList;
+        cbTextureSize.Items.Assign(slResolutions);
+        cbTextureSize.ItemIndex := 0;
+        cbTextureSize.Hint := 'Sets the texture resolution.';
+        cbTextureSize.ShowHint := True;
+        CreateLabel(frm, 24, cbTextureSize.Top + 15, 'Resolution');
+
+        cbDiffuseFormat := TComboBox.Create(gbOptions);
+        cbDiffuseFormat.Parent := gbOptions;
+        cbDiffuseFormat.Left := cbTextureSize.Left + cbTextureSize.Width + 52;
+        cbDiffuseFormat.Top := cbTextureSize.Top;
+        cbDiffuseFormat.Width := 50;
+        cbDiffuseFormat.Style := csDropDownList;
+        cbDiffuseFormat.Items.Assign(slTextureFormats);
+        cbDiffuseFormat.ItemIndex := 0;
+        cbDiffuseFormat.Hint := 'Sets the diffuse texture format.';
+        cbDiffuseFormat.ShowHint := True;
+        CreateLabel(frm, cbTextureSize.Left + cbTextureSize.Width + 16, cbDiffuseFormat.Top + 15, 'Diffuse');
+
+        cbNormalFormat := TComboBox.Create(gbOptions);
+        cbNormalFormat.Parent := gbOptions;
+        cbNormalFormat.Left := cbDiffuseFormat.Left + cbDiffuseFormat.Width + 54;
+        cbNormalFormat.Top := cbTextureSize.Top;
+        cbNormalFormat.Width := 50;
+        cbNormalFormat.Style := csDropDownList;
+        cbNormalFormat.Items.Assign(slTextureFormats);
+        cbNormalFormat.ItemIndex := 1;
+        cbNormalFormat.Hint := 'Sets the normal texture format.';
+        cbNormalFormat.ShowHint := True;
+        CreateLabel(frm, cbDiffuseFormat.Left + cbDiffuseFormat.Width + 16, cbNormalFormat.Top + 15, 'Normal');
+
+        cbSpecularFormat := TComboBox.Create(gbOptions);
+        cbSpecularFormat.Parent := gbOptions;
+        cbSpecularFormat.Left := cbNormalFormat.Left + cbNormalFormat.Width + 58;
+        cbSpecularFormat.Top := cbTextureSize.Top;
+        cbSpecularFormat.Width := 50;
+        cbSpecularFormat.Style := csDropDownList;
+        cbSpecularFormat.Items.Assign(slTextureFormats);
+        cbSpecularFormat.ItemIndex := 1;
+        cbSpecularFormat.Hint := 'Sets the specular texture format.';
+        cbSpecularFormat.ShowHint := True;
+        CreateLabel(frm, cbNormalFormat.Left + cbNormalFormat.Width + 16, cbSpecularFormat.Top + 15, 'Specular');
 
         btnStart := TButton.Create(gbOptions);
         btnStart.Parent := gbOptions;
@@ -95,8 +162,6 @@ begin
         pnl.Width := gbOptions.Width - 16;
         pnl.Height := 2;
 
-        chkLightPlugin.Checked := bLightPlugin;
-
         frm.ActiveControl := btnStart;
 
         if frm.ShowModal <> mrOk then begin
@@ -105,10 +170,22 @@ begin
         end
         else Result := True;
 
-        bLightPlugin := chkLightPlugin.Checked;
+        sResolution := slResolutions[cbTextureSize.ItemIndex];
+        sDiffuse := slTextureFormats[cbDiffuseFormat.ItemIndex];
+        sNormal := slTextureFormats[cbNormalFormat.ItemIndex];
+        sSpecular := slTextureFormats[cbSpecularFormat.ItemIndex];
+        bOnlyMissing := rbOnlyMissing.Checked;
+
+        if bOnlyMissing then AddMessage('Mode: Only Missing') else AddMessage('Mode: All');
+        AddMessage('Resolution: ' + sResolution);
+        AddMessage('Diffuse format: ' + sDiffuse);
+        AddMessage('Normal format: ' + sNormal);
+        AddMessage('Specular format: ' + sSpecular);
 
     finally
         frm.Free;
+        slTextureFormats.Free;
+        slResolutions.Free;
     end;
 end;
 
