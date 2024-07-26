@@ -3,13 +3,21 @@
 }
 unit FaceGen;
 
+// ----------------------------------------------------
+//Create variables that will need to be used accross multiple functions/procedures.
+// ----------------------------------------------------
+
 var
     iPluginFile: IInterface;
-    bOnlyMissing: Boolean;
-    sResolution, sDiffuse, sNormal, sSpecular: string;
+    bOnlyMissing, bSteamAppIDTxtExists: Boolean;
+    sResolution, sDiffuse, sNormal, sSpecular, sCKFixesINI: string;
 
 const
     sPatchName = 'FaceGenPatch.esp';
+
+// ----------------------------------------------------
+// Main functions and procedures go up immediately below.
+// ----------------------------------------------------
 
 function Initialize: integer;
 {
@@ -18,6 +26,11 @@ function Initialize: integer;
 var
     i: integer;
 begin
+
+    if not RequirementsCheck then begin
+        Result := 1;
+        Exit;
+    end;
 
     if not MainMenuForm then begin
         Result := 1;
@@ -35,6 +48,10 @@ function Finalize: integer;
 begin
     Result := 0;
 end;
+
+// ----------------------------------------------------
+// UI functions and procedures go below.
+// ----------------------------------------------------
 
 function MainMenuForm: Boolean;
 {
@@ -215,6 +232,78 @@ begin
     Result.Left := x;
     Result.Top := y;
     Result.Caption := aCaption;
+end;
+
+// ----------------------------------------------------
+// Utility Functions and Procedures go below.
+// ----------------------------------------------------
+
+function RequirementsCheck: Boolean;
+{
+    Check for required files.
+}
+var
+    iCKFixesInstalled, iCKPlatformExtendedInstalled: integer;
+begin
+    //Check for Creation Kit
+    if not FileExists(GamePath() + 'CreationKit.exe') then begin
+        MessageDlg('Please install the Creation Kit before continuing.', mtError, [mbOk], 0);
+        Result := False;
+        Exit;
+    end;
+
+    //Check for Creation Kit Fixes
+    iCKFixesInstalled := 0;
+    iCKPlatformExtendedInstalled := 0;
+    if FileExists(GamePath() + 'fallout4_test.ini') then begin
+        iCKFixesInstalled := 1;
+        sCKFixesINI := GamePath() + 'fallout4_test.ini';
+    end
+    //Check for Creation Kit Platform Extended
+    else if FileExists(GamePath() + 'CreationKitPlatformExtended.ini') then begin
+        iCKPlatformExtendedInstalled := 1;
+        sCKFixesINI := GamePath() + 'CreationKitPlatformExtended.ini';
+    end;
+    if iCKFixesInstalled + iCKPlatformExtendedInstalled = 0 then begin
+        MessageDlg('Please install Creation Kit Platform Extended or Creation Kit Fixes by perchik71 before continuing.', mtError, [mbOk], 0);
+        Result := False;
+        Exit;
+    end;
+
+    //Check for the steam_appid.txt file
+    if FileExists(GamePath() + 'steam_appid.txt') then bSteamAppIDTxtExists := True;
+
+    Result := True;
+end;
+
+// ----------------------------------------------------
+// Record processing Functions and Procedures go below.
+// ----------------------------------------------------
+
+
+// ----------------------------------------------------
+// Generic Functions and Procedures go below.
+// ----------------------------------------------------
+
+function GamePath: string;
+begin
+    Result := TrimLeftChars(wbDataPath, 5);
+end;
+
+function TrimRightChars(s: string; chars: integer): string;
+{
+    Returns right string - chars
+}
+begin
+    Result := RightStr(s, Length(s) - chars);
+end;
+
+function TrimLeftChars(s: string; chars: integer): string;
+{
+    Returns left string - chars
+}
+begin
+    Result := LeftStr(s, Length(s) - chars);
 end;
 
 end.
