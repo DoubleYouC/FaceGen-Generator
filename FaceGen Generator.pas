@@ -12,6 +12,7 @@ var
     bOnlyMissing, bSteamAppIDTxtExists: Boolean;
     sResolution, sDiffuse, sNormal, sSpecular, sCKFixesINI: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles: TStringList;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -40,6 +41,7 @@ begin
     end;
 
     CollectRecords;
+    CollectAssets;
 
     Result := 0;
 end;
@@ -53,6 +55,12 @@ begin
     tlNpc.Free;
     tlTxst.Free;
     tlHdpt.Free;
+
+    slModels.Free;
+    slTextures.Free;
+    slMaterials.Free;
+    slAssets.Free;
+    slPluginFiles.Free;
     Result := 0;
 end;
 
@@ -62,6 +70,24 @@ begin
     tlNpc := TList.Create;
     tlTxst := TList.Create;
     tlHdpt := TList.Create;
+
+    slModels := TStringList.Create;
+    slModels.Sorted := True;
+    slModels.Duplicates := dupIgnore;
+
+    slTextures := TStringList.Create;
+    slTextures.Sorted := True;
+    slTextures.Duplicates := dupIgnore;
+
+    slMaterials := TStringList.Create;
+    slMaterials.Sorted := True;
+    slMaterials.Duplicates := dupIgnore;
+
+    slAssets := TStringList.Create;
+    slAssets.Sorted := True;
+    slAssets.Duplicates := dupIgnore;
+
+    slPluginFiles := TStringList.Create;
 end;
 
 // ----------------------------------------------------
@@ -155,7 +181,7 @@ begin
         cbNormalFormat.Width := 50;
         cbNormalFormat.Style := csDropDownList;
         cbNormalFormat.Items.Assign(slTextureFormats);
-        cbNormalFormat.ItemIndex := 1;
+        cbNormalFormat.ItemIndex := 0;
         cbNormalFormat.Hint := 'Sets the normal texture format.';
         cbNormalFormat.ShowHint := True;
         CreateLabel(frm, cbDiffuseFormat.Left + cbDiffuseFormat.Width + 16, cbNormalFormat.Top + 15, 'Normal');
@@ -167,7 +193,7 @@ begin
         cbSpecularFormat.Width := 50;
         cbSpecularFormat.Style := csDropDownList;
         cbSpecularFormat.Items.Assign(slTextureFormats);
-        cbSpecularFormat.ItemIndex := 1;
+        cbSpecularFormat.ItemIndex := 0;
         cbSpecularFormat.Hint := 'Sets the specular texture format.';
         cbSpecularFormat.ShowHint := True;
         CreateLabel(frm, cbNormalFormat.Left + cbNormalFormat.Width + 16, cbSpecularFormat.Top + 15, 'Specular');
@@ -295,20 +321,119 @@ end;
 // Record processing Functions and Procedures go below.
 // ----------------------------------------------------
 
+procedure CollectAssets;
+var
+    slArchivesToAdd, slArchivedFiles: TStringList;
+    slContainers: TwbFastStringList;
+    i, j, idx: integer;
+    f, archive, masterFile: string;
+begin
+    slContainers := TwbFastStringList.Create;
+    slArchivesToAdd := TStringList.Create;
+
+    ResourceContainerList(slContainers);
+
+    for i := 0 to Pred(slContainers.Count) do begin
+        archive := TrimRightChars(slContainers[i], Length(wbDataPath));
+        if ContainsText(archive, ' - Animations.ba2') then continue;
+        if ContainsText(archive, ' - Interface.ba2') then continue;
+        if ContainsText(archive, ' - MeshesExtra.ba2') then continue;
+        if ContainsText(archive, ' - Nvflex.ba2') then continue;
+        if ContainsText(archive, ' - Shaders.ba2') then continue;
+        if ContainsText(archive, ' - Sounds.ba2') then continue;
+        if ContainsText(archive, ' - Startup.ba2') then continue;
+        if ContainsText(archive, ' - Textures1.ba2') then continue;
+        if ContainsText(archive, ' - Textures2.ba2') then continue;
+        if ContainsText(archive, ' - Textures3.ba2') then continue;
+        if ContainsText(archive, ' - Textures4.ba2') then continue;
+        if ContainsText(archive, ' - Textures5.ba2') then continue;
+        if ContainsText(archive, ' - Textures6.ba2') then continue;
+        if ContainsText(archive, ' - Textures7.ba2') then continue;
+        if ContainsText(archive, ' - Textures8.ba2') then continue;
+        if ContainsText(archive, ' - Textures9.ba2') then continue;
+        if ContainsText(archive, ' - Voices.ba2') then continue;
+        if ContainsText(archive, ' - Voices_cn.ba2') then continue;
+        if ContainsText(archive, ' - Voices_de.ba2') then continue;
+        if ContainsText(archive, ' - Voices_en.ba2') then continue;
+        if ContainsText(archive, ' - Voices_es.ba2') then continue;
+        if ContainsText(archive, ' - Voices_esmx.ba2') then continue;
+        if ContainsText(archive, ' - Voices_fr.ba2') then continue;
+        if ContainsText(archive, ' - Voices_it.ba2') then continue;
+        if ContainsText(archive, ' - Voices_ja.ba2') then continue;
+        if ContainsText(archive, ' - Voices_pl.ba2') then continue;
+        if ContainsText(archive, ' - Voices_ptbr.ba2') then continue;
+        if ContainsText(archive, ' - Voices_ru.ba2') then continue;
+        if archive = '' then continue;
+        if ContainsText(archive, ' - Main.ba2') or ContainsText(archive, ' - Textures.ba2') then begin
+            slArchivedFiles := TStringList.Create;
+            ResourceList(slContainers[i], slArchivedFiles);
+            for j := 0 to Pred(slArchivedFiles.Count) do begin
+                f := LowerCase(slArchivedFiles[j]);
+                idx := slAssets.IndexOf(f);
+                if idx > -1 then begin
+                    slArchivesToAdd.Add(archive);
+                    masterFile := GetMasterFromArchive(archive);
+                    if masterFile <> '' then begin
+                        AddMasterIfMissing(iPluginFile, masterFile);
+                        SortMasters(iPluginFile);
+                    end;
+                    break;
+                end;
+            end;
+
+            slArchivedFiles.Free;
+        end;
+    end;
+
+
+    slArchivesToAdd.Free;
+    slContainers.Free;
+end;
+
 procedure CollectRecords;
 {
     Collects records.
 }
 var
-    i, j, idx: integer;
-    recordId, masterFile, relativeFormid: string;
-    f, g, r: IInterface;
+    i, j, k, idx: integer;
+    filename, recordId, masterFile, material, model, relativeFormid, texture, tri: string;
+    e, r, eModt, eTextures, eMaterials, eParts: IInterface;
+    g: IwbGroupRecord;
+    isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
+    f, fallout4esm: IwbFile;
     slRace, slNpc, slTxst, slHdpt: TStringList;
 begin
     slRace := TStringList.Create;
     slNpc := TStringList.Create;
     slHdpt := TStringList.Create;
     slTxst := TStringList.Create;
+
+    for i := 0 to Pred(FileCount) do begin
+        f := FileByIndex(i);
+        filename := GetFileName(f);
+        slPluginFiles.Add(filename);
+
+        if SameText(filename, 'Fallout4.esm') then begin
+            fallout4esm := f;
+            isPlayerChild := RecordByFormID(fallout4esm, $001916C4, False); //these are handled special for facegen
+            MQ101PlayerSpouseMale := RecordByFormID(fallout4esm, $000A7D34, False); //handled special for facegen
+        end
+        else if SameText(filename, sPatchName) then begin
+            iPluginFile := f;
+            //Clear out any previous edits to the file.
+
+            if HasGroup(iPluginFile, 'NPC_') then begin
+                RemoveNode(GroupBySignature(iPluginFile, 'NPC_'));
+            end;
+            CleanMasters(iPluginFile);
+            AddMasterIfMissing(iPluginFile, 'Fallout4.esm');
+        end;
+    end;
+
+    if not Assigned(iPluginFile) then begin
+        iPluginFile := AddNewFileName(sPatchName, True);
+        AddMasterIfMissing(iPluginFile, 'Fallout4.esm');
+    end;
 
     for i := 0 to Pred(FileCount) do begin
         f := FileByIndex(i);
@@ -326,7 +451,7 @@ begin
             //AddMessage(recordID);
         end;
 
-        //RACE
+        //NPC_
         g := GroupBySignature(f, 'NPC_');
         for j := 0 to Pred(ElementCount(g)) do begin
             r := WinningOverride(ElementByIndex(g, j));
@@ -337,19 +462,246 @@ begin
             if idx = -1 then continue;
             if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
             if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
+            if KeywordExists(r, isPlayerChild) then continue;
+            if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
+            if bOnlyMissing then begin
+                masterFile := GetFileName(MasterOrSelf(r));
+                relativeFormid := '00' + TrimRightChars(IntToHex(GetLoadOrderFormID(r), 8), 2);
+                if FaceGenExists(relativeFormid, masterFile) then continue;
+            end;
             slNpc.Add(recordId);
             tlNpc.Add(r);
-            masterFile := GetFileName(MasterOrSelf(r));
-            relativeFormid := '00' + TrimRightChars(IntToHex(GetLoadOrderFormID(r), 8), 2);
-            if FaceGenExists(relativeFormid, masterFile) then continue;
-            AddMessage(recordID);
+            AddRequiredElementMasters(r, iPluginFile, False, True);
+            SortMasters(iPluginFile);
+            wbCopyElementToFile(r, iPluginFile, False, True);
+
+
+            //AddMessage(recordID);
+        end;
+
+        //Hdpt
+        g := GroupBySignature(f, 'HDPT');
+        for j := 0 to Pred(ElementCount(g)) do begin
+            r := WinningOverride(ElementByIndex(g, j));
+            recordId := GetFileName(r) + #9 + ShortName(r);
+            idx := slHdpt.IndexOf(recordId);
+            if idx > -1 then continue;
+            if ElementExists(r, 'Model\MODL') then begin
+                model := wbNormalizeResourceName(GetElementEditValues(r, 'Model\MODL'), resMesh);
+                slModels.Add(model);
+                slAssets.Add(model);
+            end;
+            if ElementExists(r, 'Model\MODT') then begin
+                eTextures := ElementByPath(r, 'Model\MODT\Textures');
+                for k := 0 to Pred(ElementCount(eTextures)) do begin
+                    e := ElementByIndex(eTextures, k);
+                    texture := wbNormalizeResourceName(GetSummary(e), resTexture);
+                    slTextures.Add(texture);
+                    slAssets.Add(texture);
+                end;
+                eMaterials := ElementByPath(r, 'Model\MODT\Materials');
+                for k := 0 to Pred(ElementCount(eMaterials)) do begin
+                    e := ElementByIndex(eMaterials, k);
+                    material := wbNormalizeResourceName(GetSummary(e), resMaterial);
+                    slMaterials.Add(material);
+                    slAssets.Add(material);
+                    AddMaterialTextures(material);
+                end;
+            end;
+            if ElementExists(r, 'Parts') then begin
+                eParts := ElementByPath(r, 'Parts');
+                for k := 0 to Pred(ElementCount(eParts)) do begin
+                    e := ElementbyIndex(eParts, k);
+                    tri := wbNormalizeResourceName(GetElementEditValues(e, 'NAM1'), resMesh);
+                    slModels.Add(tri);
+                    slAssets.Add(tri);
+                end;
+            end;
+            slHdpt.Add(recordId);
+            tlHdpt.Add(r);
+            //AddMessage(recordID);
+        end;
+
+        //TXST
+        g := GroupBySignature(f, 'TXST');
+        for j := 0 to Pred(ElementCount(g)) do begin
+            r := WinningOverride(ElementByIndex(g, j));
+            recordId := GetFileName(r) + #9 + ShortName(r);
+            idx := slTxst.IndexOf(recordId);
+            if idx > -1 then continue;
+            if GetElementEditValues(r, 'DNAM - Flags\Facegen Textures') <> '1' then continue;
+
+            if ElementExists(r, 'Textures (RGB/A)\TX00') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX00'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+            if ElementExists(r, 'Textures (RGB/A)\TX01') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX01'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+            if ElementExists(r, 'Textures (RGB/A)\TX03') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX03'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+            if ElementExists(r, 'Textures (RGB/A)\TX04') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX04'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+            if ElementExists(r, 'Textures (RGB/A)\TX05') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX05'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+            if ElementExists(r, 'Textures (RGB/A)\TX02') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX02'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+            if ElementExists(r, 'Textures (RGB/A)\TX06') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX06'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+            if ElementExists(r, 'Textures (RGB/A)\TX07') then begin
+                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX07'), resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+
+            if ElementExists(r, 'MNAM') then begin
+                material := wbNormalizeResourceName(GetElementEditValues(r, 'MNAM'), resMaterial);
+                slMaterials.Add(material);
+                slAssets.Add(material);
+                AddMaterialTextures(material);
+            end;
+
+            slTxst.Add(recordId);
+            tlTxst.Add(r);
+            //AddMessage(recordID);
         end;
     end;
+    //ListStringsInStringList(slAssets);
 
     slRace.Free;
     slNpc.Free;
     slHdpt.Free;
     slTxst.Free;
+end;
+
+
+
+// ----------------------------------------------------
+// Generic Functions and Procedures go below.
+// ----------------------------------------------------
+
+function GetMasterFromArchive(a: string): string;
+{
+    Find the plugin that is loading the archive.
+}
+var
+    f, filename: string;
+    i: integer;
+begin
+    Result := '';
+    if ContainsText(a, ' - Main.ba2') then f := LowerCase(TrimLeftChars(a, Length(' - Main.ba2')))
+    else if ContainsText(a, ' - Textures.ba2') then f := LowerCase(TrimLeftChars(a, Length(' - Textures.ba2')));
+
+    for i := 0 to Pred(FileCount) do begin
+        filename := GetFileName(FileByIndex(i));
+        if LowerCase(TrimLeftChars(filename, 4)) = f then begin
+            Result := filename;
+            break;
+        end;
+    end;
+end;
+
+procedure AddMaterialTextures(f: string);
+{
+    Add textures from material.
+}
+var
+    i: integer;
+    tp, texture: string;
+    bgsm: TwbBGSMFile;
+    bgem: TwbBGEMFile;
+    el: TdfElement;
+begin
+    if RightStr(f, 4) = 'bgsm' then begin
+        bgsm := TwbBGSMFile.Create;
+        try
+            bgsm.LoadFromResource(f);
+            el := bgsm.Elements['Textures'];
+            for i := 0 to Pred(el.Count) do begin
+                tp := el[i].EditValue;
+                if Length(tp) < 4 then continue;
+                texture := wbNormalizeResourceName(tp, resTexture);
+                slTextures.Add(texture);
+                slAssets.Add(texture);
+            end;
+        finally
+            bgsm.Free;
+        end;
+    end
+    else if RightStr(f, 4) = 'bgem' then begin
+        bgem := TwbBGEMFile.Create;
+        try
+            bgem.LoadFromResource(f);
+
+            el := bgem.Elements['Base Texture'];
+            texture := wbNormalizeResourceName(el, resTexture);
+            slTextures.Add(texture);
+            slAssets.Add(texture);
+
+            el := bgem.Elements['Grayscale Texture'];
+            texture := wbNormalizeResourceName(el, resTexture);
+            slTextures.Add(texture);
+            slAssets.Add(texture);
+
+            el := bgem.Elements['Envmap Texture'];
+            texture := wbNormalizeResourceName(el, resTexture);
+            slTextures.Add(texture);
+            slAssets.Add(texture);
+
+            el := bgem.Elements['Normal Texture'];
+            texture := wbNormalizeResourceName(el, resTexture);
+            slTextures.Add(texture);
+            slAssets.Add(texture);
+
+            el := bgem.Elements['Envmap Mask Texture'];
+            texture := wbNormalizeResourceName(el, resTexture);
+            slTextures.Add(texture);
+            slAssets.Add(texture);
+
+            el := bgem.Elements['Glow Texture'];
+            texture := wbNormalizeResourceName(el, resTexture);
+            slTextures.Add(texture);
+            slAssets.Add(texture);
+        finally
+            bgem.Free;
+        end;
+    end;
+end;
+
+function KeywordExists(r: IInterface; keyword: IwbMainRecord): boolean;
+{
+    Checks if the r has keyword.
+}
+var
+    i: integer;
+    keywords: IInterface;
+begin
+    Result := False;
+    keywords := ElementByPath(r, 'KWDA');
+    for i := 0 to Pred(ElementCount(keywords)) do begin
+        if GetLoadOrderFormID(LinksTo(ElementByIndex(keywords, i))) = GetLoadOrderFormID(keyword) then begin
+            Result := True;
+            break;
+        end;
+    end;
 end;
 
 function FaceGenExists(relativeFormid, masterFile: string): Boolean;
@@ -362,13 +714,21 @@ begin
     Result := True;
 end;
 
-// ----------------------------------------------------
-// Generic Functions and Procedures go below.
-// ----------------------------------------------------
-
 function GamePath: string;
 begin
     Result := TrimLeftChars(wbDataPath, 5);
+end;
+
+procedure ListStringsInStringList(sl: TStringList);
+{
+    Given a TStringList, add a message for all items in the list.
+}
+var
+    i: integer;
+begin
+    AddMessage('=======================================================================================');
+    for i := 0 to Pred(sl.Count) do AddMessage(sl[i]);
+    AddMessage('=======================================================================================');
 end;
 
 function TrimRightChars(s: string; chars: integer): string;
