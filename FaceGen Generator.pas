@@ -11,6 +11,7 @@ var
     iPluginFile: IInterface;
     bOnlyMissing, bSteamAppIDTxtExists: Boolean;
     sResolution, sDiffuse, sNormal, sSpecular, sCKFixesINI: string;
+    tlRace, tlNpc, tlTxst, tlHdpt: TList;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -26,6 +27,7 @@ function Initialize: integer;
 var
     i: integer;
 begin
+    CreateObjects;
 
     if not RequirementsCheck then begin
         Result := 1;
@@ -37,6 +39,7 @@ begin
         Exit;
     end;
 
+    CollectRecords;
 
     Result := 0;
 end;
@@ -46,7 +49,19 @@ function Finalize: integer;
     This function is called at the end.
 }
 begin
+    tlRace.Free;
+    tlNpc.Free;
+    tlTxst.Free;
+    tlHdpt.Free;
     Result := 0;
+end;
+
+procedure CreateObjects;
+begin
+    tlRace := TList.Create;
+    tlNpc := TList.Create;
+    tlTxst := TList.Create;
+    tlHdpt := TList.Create;
 end;
 
 // ----------------------------------------------------
@@ -280,6 +295,72 @@ end;
 // Record processing Functions and Procedures go below.
 // ----------------------------------------------------
 
+procedure CollectRecords;
+{
+    Collects records.
+}
+var
+    i, j, idx: integer;
+    recordId, masterFile, relativeFormid: string;
+    f, g, r: IInterface;
+    slRace, slNpc, slTxst, slHdpt: TStringList;
+begin
+    slRace := TStringList.Create;
+    slNpc := TStringList.Create;
+    slHdpt := TStringList.Create;
+    slTxst := TStringList.Create;
+
+    for i := 0 to Pred(FileCount) do begin
+        f := FileByIndex(i);
+
+        //RACE
+        g := GroupBySignature(f, 'RACE');
+        for j := 0 to Pred(ElementCount(g)) do begin
+            r := WinningOverride(ElementByIndex(g, j));
+            recordId := GetFileName(r) + #9 + ShortName(r);
+            idx := slRace.IndexOf(recordId);
+            if idx > -1 then continue;
+            if GetElementEditValues(r, 'DATA\Flags\FaceGen Head') <> '1' then continue;
+            slRace.Add(recordId);
+            tlRace.Add(r);
+            //AddMessage(recordID);
+        end;
+
+        //RACE
+        g := GroupBySignature(f, 'NPC_');
+        for j := 0 to Pred(ElementCount(g)) do begin
+            r := WinningOverride(ElementByIndex(g, j));
+            recordId := GetFileName(r) + #9 + ShortName(r);
+            idx := slNpc.IndexOf(recordId);
+            if idx > -1 then continue;
+            idx := tlRace.IndexOf(LinksTo(ElementByPath(r, 'RNAM')));
+            if idx = -1 then continue;
+            if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
+            if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
+            slNpc.Add(recordId);
+            tlNpc.Add(r);
+            masterFile := GetFileName(MasterOrSelf(r));
+            relativeFormid := '00' + TrimRightChars(IntToHex(GetLoadOrderFormID(r), 8), 2);
+            if FaceGenExists(relativeFormid, masterFile) then continue;
+            AddMessage(recordID);
+        end;
+    end;
+
+    slRace.Free;
+    slNpc.Free;
+    slHdpt.Free;
+    slTxst.Free;
+end;
+
+function FaceGenExists(relativeFormid, masterFile: string): Boolean;
+begin
+    Result := False;
+    if not ResourceExists('Meshes\Actors\Character\FaceGenData\FaceGeom\' + masterFile + '\' + relativeFormid + '.nif') then Exit;
+    if not ResourceExists('Textures\Actors\Character\FaceCustomization\' + masterFile + '\' + relativeFormid + '_d.dds') then Exit;
+    if not ResourceExists('Textures\Actors\Character\FaceCustomization\' + masterFile + '\' + relativeFormid + '_msn.dds') then Exit;
+    if not ResourceExists('Textures\Actors\Character\FaceCustomization\' + masterFile + '\' + relativeFormid + '_s.dds') then Exit;
+    Result := True;
+end;
 
 // ----------------------------------------------------
 // Generic Functions and Procedures go below.
