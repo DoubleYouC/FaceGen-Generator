@@ -399,7 +399,7 @@ procedure CollectRecords;
 var
     i, j, k, l, m, idx: integer;
     filename, recordId, masterFile, material, model, relativeFormid, texture, tri: string;
-    e, r, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
+    e, r, npc, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
     g: IwbGroupRecord;
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
@@ -508,7 +508,7 @@ begin
             tlNpc.Add(r);
             AddRequiredElementMasters(r, iPluginFile, False, True);
             SortMasters(iPluginFile);
-            wbCopyElementToFile(r, iPluginFile, False, True);
+            npc := wbCopyElementToFile(r, iPluginFile, False, True);
 
 
             //AddMessage(recordID);
@@ -602,6 +602,7 @@ begin
         end;
     end;
     //ListStringsInStringList(slAssets);
+    ListStringsInStringList(slNPC);
 
     slRace.Free;
     slNpc.Free;
