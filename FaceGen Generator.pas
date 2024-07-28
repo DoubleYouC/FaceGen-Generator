@@ -43,6 +43,8 @@ begin
     CollectRecords;
     CollectAssets;
 
+    TextureInfo;
+
     Result := 0;
 end;
 
@@ -395,9 +397,9 @@ procedure CollectRecords;
     Collects records.
 }
 var
-    i, j, k, idx: integer;
+    i, j, k, l, m, idx: integer;
     filename, recordId, masterFile, material, model, relativeFormid, texture, tri: string;
-    e, r, eModt, eTextures, eMaterials, eParts: IInterface;
+    e, r, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
     g: IwbGroupRecord;
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
@@ -446,6 +448,39 @@ begin
             idx := slRace.IndexOf(recordId);
             if idx > -1 then continue;
             if GetElementEditValues(r, 'DATA\Flags\FaceGen Head') <> '1' then continue;
+
+            if ElementExists(r, 'Male Tint Layers') then begin
+                eMaleTints := ElementByPath(r, 'Male Tint Layers');
+                for k := 0 to Pred(ElementCount(eMaleTints)) do begin
+                    eTintGroup := ElementByIndex(eMaleTints, k);
+                    eOptions := ElementByName(eTintGroup, 'Options');
+                    for l := 0 to Pred(ElementCount(eOptions)) do begin
+                        eOption := ElementByIndex(eOptions, l);
+                        eTextures := ElementByName(eOption, 'Textures');
+                        for m := 0 to Pred(ElementCount(eTextures)) do begin
+                            e := ElementByIndex(eTextures, m);
+                            AddTexture(recordId, GetEditValue(e));
+                        end;
+                    end;
+                end;
+            end;
+
+            if ElementExists(r, 'Female Tint Layers') then begin
+                eMaleTints := ElementByPath(r, 'Male Tint Layers');
+                for k := 0 to Pred(ElementCount(eMaleTints)) do begin
+                    eTintGroup := ElementByIndex(eMaleTints, k);
+                    eOptions := ElementByName(eTintGroup, 'Options');
+                    for l := 0 to Pred(ElementCount(eOptions)) do begin
+                        eOption := ElementByIndex(eOptions, l);
+                        eTextures := ElementByName(eOption, 'Textures');
+                        for m := 0 to Pred(ElementCount(eTextures)) do begin
+                            e := ElementByIndex(eTextures, m);
+                            AddTexture(recordId, GetEditValue(e));
+                        end;
+                    end;
+                end;
+            end;
+
             slRace.Add(recordId);
             tlRace.Add(r);
             //AddMessage(recordID);
@@ -495,9 +530,7 @@ begin
                 eTextures := ElementByPath(r, 'Model\MODT\Textures');
                 for k := 0 to Pred(ElementCount(eTextures)) do begin
                     e := ElementByIndex(eTextures, k);
-                    texture := wbNormalizeResourceName(GetSummary(e), resTexture);
-                    slTextures.Add(texture);
-                    slAssets.Add(texture);
+                    AddTexture(recordId, GetSummary(e));
                 end;
                 eMaterials := ElementByPath(r, 'Model\MODT\Materials');
                 for k := 0 to Pred(ElementCount(eMaterials)) do begin
@@ -532,44 +565,28 @@ begin
             if GetElementEditValues(r, 'DNAM - Flags\Facegen Textures') <> '1' then continue;
 
             if ElementExists(r, 'Textures (RGB/A)\TX00') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX00'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX00'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX01') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX01'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX01'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX03') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX03'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX03'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX04') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX04'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX04'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX05') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX05'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX05'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX02') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX02'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX02'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX06') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX06'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX06'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX07') then begin
-                texture := wbNormalizeResourceName(GetElementEditValues(r, 'Textures (RGB/A)\TX07'), resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX07'));
             end;
 
             if ElementExists(r, 'MNAM') then begin
@@ -592,11 +609,71 @@ begin
     slTxst.Free;
 end;
 
+procedure TextureInfo;
+var
+    i: integer;
+    f: string;
+begin
+    AddMessage('=======================================================================================');
+    AddMessage('Textures:');
+    for i := 0 to Pred(slTextures.Count) do begin
+        f := slTextures[i];
+        if f = '' then continue;
+        AddMessage(f + #9 + GetTextureInfo(f));
+    end;
+end;
 
 
 // ----------------------------------------------------
 // Generic Functions and Procedures go below.
 // ----------------------------------------------------
+
+procedure AddTexture(id, texture: string);
+{
+    Add texture to texture string lists if present, and warn if missing for the id.
+}
+begin
+    if SameText(texture, '') then Exit;
+    texture := wbNormalizeResourceName(texture, resTexture);
+    if not ResourceExists(texture) then begin
+        AddMessage('Warning:' + id + ' defines missing texture ' + texture);
+        Exit;
+    end;
+    slTextures.Add(texture);
+    slAssets.Add(texture);
+end;
+
+function GetTextureInfo(f: string): string;
+{
+    Get resolution of texture in h x w format
+}
+var
+    dds: TwbDDSFile;
+    height, width, mipmaps: integer;
+    cubemap: string;
+begin
+    dds := TwbDDSFile.Create;
+    try
+        try
+            dds.LoadFromResource(f);
+            if dds.EditValues['Magic'] <> 'DDS ' then
+                raise Exception.Create('Not a valid DDS file');
+        except
+            on E: Exception do begin
+                AddMessage('Error reading: ' + f + ' <' + E.Message + '>');
+            end;
+        end;
+        height := dds.NativeValues['HEADER\dwHeight'];
+        width := dds.NativeValues['HEADER\dwWidth'];
+        mipmaps := dds.NativeValues['HEADER\dwMipMapCount'];
+        if dds.NativeValues['HEADER\dwCaps2'] > 0 then
+            Result := IntToStr(height) + ' x ' + IntToStr(width) + #9 + 'Mips: ' + IntToStr(mipmaps) + #9 + 'Cubemap: true'
+        else
+            Result := IntToStr(height) + ' x ' + IntToStr(width) + #9 + 'Mips: ' + IntToStr(mipmaps);
+    finally
+        dds.Free;
+    end;
+end;
 
 function GetMasterFromArchive(a: string): string;
 {
@@ -638,9 +715,7 @@ begin
             for i := 0 to Pred(el.Count) do begin
                 tp := el[i].EditValue;
                 if Length(tp) < 4 then continue;
-                texture := wbNormalizeResourceName(tp, resTexture);
-                slTextures.Add(texture);
-                slAssets.Add(texture);
+                AddTexture(f, tp);
             end;
         finally
             bgsm.Free;
@@ -652,34 +727,22 @@ begin
             bgem.LoadFromResource(f);
 
             el := bgem.Elements['Base Texture'];
-            texture := wbNormalizeResourceName(el, resTexture);
-            slTextures.Add(texture);
-            slAssets.Add(texture);
+            AddTexture(f, el);
 
             el := bgem.Elements['Grayscale Texture'];
-            texture := wbNormalizeResourceName(el, resTexture);
-            slTextures.Add(texture);
-            slAssets.Add(texture);
+            AddTexture(f, el);
 
             el := bgem.Elements['Envmap Texture'];
-            texture := wbNormalizeResourceName(el, resTexture);
-            slTextures.Add(texture);
-            slAssets.Add(texture);
+            AddTexture(f, el);
 
             el := bgem.Elements['Normal Texture'];
-            texture := wbNormalizeResourceName(el, resTexture);
-            slTextures.Add(texture);
-            slAssets.Add(texture);
+            AddTexture(f, el);
 
             el := bgem.Elements['Envmap Mask Texture'];
-            texture := wbNormalizeResourceName(el, resTexture);
-            slTextures.Add(texture);
-            slAssets.Add(texture);
+            AddTexture(f, el);
 
             el := bgem.Elements['Glow Texture'];
-            texture := wbNormalizeResourceName(el, resTexture);
-            slTextures.Add(texture);
-            slAssets.Add(texture);
+            AddTexture(f, el);
         finally
             bgem.Free;
         end;
