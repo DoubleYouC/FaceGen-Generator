@@ -30,12 +30,12 @@ var
 begin
     CreateObjects;
 
-    if not RequirementsCheck then begin
+    if not MainMenuForm then begin
         Result := 1;
         Exit;
     end;
 
-    if not MainMenuForm then begin
+    if not RequirementsCheck then begin
         Result := 1;
         Exit;
     end;
