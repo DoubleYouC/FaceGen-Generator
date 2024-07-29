@@ -34,7 +34,7 @@ else if(aeType == FileConverter.ConvertType.Texture)
 	if(filePath.Contains("_d.tga"))
     {
         aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for diffuse facegen texture.");
-        aTextureConverter.GenerateMipMaps = true;
+        aTextureConverter.GenerateMipMaps = false;
 		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC1;//diff
 		aTextureConverter.QuarteringThreshold = "1024";//diff
 		aTextureConverter.ForceBelowThreshold = true;
@@ -42,7 +42,7 @@ else if(aeType == FileConverter.ConvertType.Texture)
     if(filePath.Contains("_msn.tga"))
     {
         aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for normal facegen texture.");
-        aTextureConverter.GenerateMipMaps = true;
+        aTextureConverter.GenerateMipMaps = false;
 		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC1;//norm
 		aTextureConverter.QuarteringThreshold = "1024";//norm
 		aTextureConverter.ForceBelowThreshold = true;
@@ -50,7 +50,7 @@ else if(aeType == FileConverter.ConvertType.Texture)
 	if(filePath.Contains("_s.tga"))
     {
         aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for specular facegen texture.");
-        aTextureConverter.GenerateMipMaps = true;
+        aTextureConverter.GenerateMipMaps = false;
 		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC5;//spec
 		aTextureConverter.QuarteringThreshold = "512";//spec
 		aTextureConverter.ForceBelowThreshold = true;
