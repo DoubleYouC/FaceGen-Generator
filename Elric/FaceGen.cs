@@ -33,22 +33,26 @@ else if(aeType == FileConverter.ConvertType.Texture)
 		eprocess = FilterScript.Result.Skip; //skip anything that isn't facegen
 	if(filePath.Contains("_d.tga"))
     {
-        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method to BC1.");
+        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for diffuse facegen texture.");
         aTextureConverter.GenerateMipMaps = true;
-		//aTextureConverter.ForcedFormat = BC1;
+		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC1;//diff
+		aTextureConverter.QuarteringThreshold = "1024";//diff
+		aTextureConverter.ForceBelowThreshold = true;
     }
     if(filePath.Contains("_msn.tga"))
     {
-        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method to BC1.");
+        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for normal facegen texture.");
         aTextureConverter.GenerateMipMaps = true;
-		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC1;
+		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC1;//norm
+		aTextureConverter.QuarteringThreshold = "1024";//norm
+		aTextureConverter.ForceBelowThreshold = true;
     }
 	if(filePath.Contains("_s.tga"))
     {
-        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method to BC5.");
+        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for specular facegen texture.");
         aTextureConverter.GenerateMipMaps = true;
-		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC5;
-		aTextureConverter.QuarteringThreshold = "512";
+		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC5;//spec
+		aTextureConverter.QuarteringThreshold = "512";//spec
 		aTextureConverter.ForceBelowThreshold = true;
     }
 }
