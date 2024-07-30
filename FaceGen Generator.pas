@@ -40,9 +40,11 @@ begin
         Exit;
     end;
 
-    if not RequirementsCheck then begin
-        Result := 1;
-        Exit;
+    if not bQuickFaceFix then begin
+        if not RequirementsCheck then begin
+            Result := 1;
+            Exit;
+        end;
     end;
 
     CollectRecords;
