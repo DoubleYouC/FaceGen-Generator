@@ -16,6 +16,7 @@ var
 
 const
     sPatchName = 'FaceGenPatch.esp';
+    elricSettings = ScriptsPath() + 'Elric\FaceGen.cs';
 
 // ----------------------------------------------------
 // Main functions and procedures go up immediately below.
@@ -44,6 +45,8 @@ begin
     CollectAssets;
 
     TextureInfo;
+
+    SetTexturesOptions;
 
     Result := 0;
 end;
@@ -319,6 +322,21 @@ begin
     Result := True;
 end;
 
+procedure SetTexturesOptions;
+{
+    Sets the texture settings.
+}
+var
+    TFile: TFile;
+    reader, modified: string;
+begin
+    reader := TFile.ReadAllText(elricSettings);
+    AddMessage(reader);
+    modified := StringReplace(reader, '"512";//spec', '"1024";//spec', rfReplaceAll);
+    AddMessage(modified);
+    TFile.WriteAllText(elricSettings, modified);
+end;
+
 // ----------------------------------------------------
 // Record processing Functions and Procedures go below.
 // ----------------------------------------------------
@@ -398,8 +416,8 @@ procedure CollectRecords;
 }
 var
     i, j, k, l, m, idx: integer;
-    filename, recordId, masterFile, material, model, relativeFormid, texture, tri: string;
-    e, r, npc, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
+    editorId, filename, recordId, masterFile, material, model, newEditorId, relativeFormid, texture, tri: string;
+    e, r, npc, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
     g: IwbGroupRecord;
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
@@ -552,6 +570,17 @@ begin
             end;
             slHdpt.Add(recordId);
             tlHdpt.Add(r);
+            editorId := GetElementEditValues(r, 'EDID');
+            newEditorId := StringReplace(editorid, ' ', '', [rfReplaceAll, rfIgnoreCase]);
+            newEditorId := StringReplace(newEditorId, '-', '_', [rfReplaceAll, rfIgnoreCase]);
+            newEditorId := StringReplace(newEditorId, '+', '_', [rfReplaceAll, rfIgnoreCase]);
+            newEditorId := StringReplace(newEditorId, '=', '_', [rfReplaceAll, rfIgnoreCase]);
+            if SameText(editorId, newEditorId) then continue;
+            AddRequiredElementMasters(r, iPluginFile, False, True);
+            SortMasters(iPluginFile);
+            headpart := wbCopyElementToFile(r, iPluginFile, False, True);
+            SetElementEditValues(headpart, 'EDID', newEditorId);
+
             //AddMessage(recordID);
         end;
 
