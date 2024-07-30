@@ -9,10 +9,12 @@ unit FaceGen;
 
 var
     iPluginFile: IInterface;
-    bOnlyMissing, bSteamAppIDTxtExists: Boolean;
-    sResolution, sDiffuse, sNormal, sSpecular, sCKFixesINI: string;
+    bQuickFaceFix, bOnlyMissing, bSteamAppIDTxtExists: Boolean;
+    sResolution, sDiffuseFormat, sDiffuseRes, sNormalFormat, sNormalRes, sSpecularFormat, sSpecularRes, sCKFixesINI, sElricReadSettings, sElricModifiedSettings: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles: TStringList;
+    slModels, slTextureFormats, slTextures, slMaterials, slAssets, slPluginFiles: TStringList;
+    cbDiffuseSize, cbDiffuseFormat, cbNormalSize, cbNormalFormat, cbSpecularSize, cbSpecularFormat: TComboBox;
+    rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -30,6 +32,8 @@ var
     i: integer;
 begin
     CreateObjects;
+
+    ReadElricSettings;
 
     if not MainMenuForm then begin
         Result := 1;
@@ -93,6 +97,11 @@ begin
     slAssets.Duplicates := dupIgnore;
 
     slPluginFiles := TStringList.Create;
+
+    slTextureFormats := TStringList.Create;
+    slTextureFormats.Add('BC1');
+    slTextureFormats.Add('BC5');
+    slTextureFormats.Add('BC7');
 end;
 
 // ----------------------------------------------------
@@ -108,24 +117,18 @@ var
     btnStart, btnCancel: TButton;
     pnl: TPanel;
     gbOptions: TGroupBox;
-    cbTextureSize, cbDiffuseFormat, cbNormalFormat, cbSpecularFormat: TComboBox;
-    rbOnlyMissing, rbAll: TRadioButton;
-    slResolutions, slTextureFormats: TStringList;
+    slResolutions: TStringList;
 begin
     frm := TForm.Create(nil);
     try
         slResolutions := TStringList.Create;
+        slResolutions.Add('512');
         slResolutions.Add('1024');
         slResolutions.Add('2048');
 
-        slTextureFormats := TStringList.Create;
-        slTextureFormats.Add('BC1');
-        slTextureFormats.Add('BC5');
-        slTextureFormats.Add('BC7');
-
         frm.Caption := 'FaceGen Generator';
         frm.Width := 600;
-        frm.Height := 200;
+        frm.Height := 260;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
@@ -138,76 +141,126 @@ begin
         gbOptions.Top := 12;
         gbOptions.Width := frm.Width - 30;
         gbOptions.Caption := 'Options';
-        gbOptions.Height := 134;
+        gbOptions.Height := 194;
+
+        rbFaceGenPreset := TRadioButton.Create(gbOptions);
+        rbFaceGenPreset.Name := 'rbFaceGenPreset';
+        rbFaceGenPreset.Parent := gbOptions;
+        rbFaceGenPreset.Left := 16;
+        rbFaceGenPreset.Top := 30;
+        rbFaceGenPreset.Width := 100;
+        rbFaceGenPreset.Caption := 'Quick Face Fix';
+        rbFaceGenPreset.Hint := 'Copies only NPCs to patch for whom facegen is missing,'
+             + #13#10 + 'which will otherwise produce a missing head,'
+             + #13#10 + 'and sets the "Is CharGen Face Preset" flag.'
+             + #13#10 + 'The game will generate the face, which may cause stutter.';
+        rbFaceGenPreset.ShowHint := True;
+        rbFaceGenPreset.OnClick := RadioClick;
 
         rbOnlyMissing := TRadioButton.Create(gbOptions);
+        rbOnlyMissing.Name := 'rbOnlyMissing';
         rbOnlyMissing.Parent := gbOptions;
-        rbOnlyMissing.Left := 16;
-        rbOnlyMissing.Top := 30;
-        rbOnlyMissing.Width := 100;
-        rbOnlyMissing.Caption := 'Missing Only';
+        rbOnlyMissing.Left := rbFaceGenPreset.Left + rbFaceGenPreset.Width + 20;;
+        rbOnlyMissing.Top := rbFaceGenPreset.Top;
+        rbOnlyMissing.Width := 150;
+        rbOnlyMissing.Caption := 'Generate Missing Faces';
+        rbOnlyMissing.Hint := 'Copies only NPCs to patch for whom facegen is missing,'
+             + #13#10 + 'which will otherwise produce a missing head.'
+             + #13#10 + 'This will be used to generate FaceGen via the Creation Kit.';
+        rbOnlyMissing.ShowHint := True;
         rbOnlyMissing.Checked := True;
+        rbOnlyMissing.OnClick := RadioClick;
 
         rbAll := TRadioButton.Create(gbOptions);
+        rbAll.Name := 'rbAll';
         rbAll.Parent := gbOptions;
         rbAll.Left := rbOnlyMissing.Left + rbOnlyMissing.Width + 20;
-        rbAll.Top := rbOnlyMissing.Top;
-        rbAll.Width := 80;
-        rbAll.Caption := 'All';
+        rbAll.Top := rbFaceGenPreset.Top;
+        rbAll.Width := 150;
+        rbAll.Hint := 'Copies all NPCs that use FaceGen to patch'
+             + #13#10 + 'to allow regenerating all faces in the game.'
+             + #13#10 + 'This will be used to generate FaceGen via the Creation Kit.';
+        rbAll.Caption := 'Generate All Faces';
+        rbAll.ShowHint := True;
+        rbAll.OnClick := RadioClick;
 
-        cbTextureSize := TComboBox.Create(gbOptions);
-        cbTextureSize.Parent := gbOptions;
-        cbTextureSize.Left := 78;
-        cbTextureSize.Top := 60;
-        cbTextureSize.Width := 50;
-        cbTextureSize.Style := csDropDownList;
-        cbTextureSize.Items.Assign(slResolutions);
-        cbTextureSize.ItemIndex := 0;
-        cbTextureSize.Hint := 'Sets the texture resolution.';
-        cbTextureSize.ShowHint := True;
-        CreateLabel(frm, 24, cbTextureSize.Top + 15, 'Resolution');
+        cbDiffuseSize := TComboBox.Create(gbOptions);
+        cbDiffuseSize.Parent := gbOptions;
+        cbDiffuseSize.Left := 90;
+        cbDiffuseSize.Top := 60;
+        cbDiffuseSize.Width := 50;
+        cbDiffuseSize.Style := csDropDownList;
+        cbDiffuseSize.Items.Assign(slResolutions);
+        cbDiffuseSize.ItemIndex := slResolutions.IndexOf(sDiffuseRes);
+        cbDiffuseSize.Hint := 'Sets the diffuse texture resolution.';
+        cbDiffuseSize.ShowHint := True;
+        CreateLabel(frm, 24, cbDiffuseSize.Top + 15, 'Diffuse Size');
 
         cbDiffuseFormat := TComboBox.Create(gbOptions);
         cbDiffuseFormat.Parent := gbOptions;
-        cbDiffuseFormat.Left := cbTextureSize.Left + cbTextureSize.Width + 52;
-        cbDiffuseFormat.Top := cbTextureSize.Top;
+        cbDiffuseFormat.Left := cbDiffuseSize.Left + cbDiffuseSize.Width + 52;
+        cbDiffuseFormat.Top := cbDiffuseSize.Top;
         cbDiffuseFormat.Width := 50;
         cbDiffuseFormat.Style := csDropDownList;
         cbDiffuseFormat.Items.Assign(slTextureFormats);
-        cbDiffuseFormat.ItemIndex := 0;
+        cbDiffuseFormat.ItemIndex := slTextureFormats.IndexOf(sDiffuseFormat);
         cbDiffuseFormat.Hint := 'Sets the diffuse texture format.';
         cbDiffuseFormat.ShowHint := True;
-        CreateLabel(frm, cbTextureSize.Left + cbTextureSize.Width + 16, cbDiffuseFormat.Top + 15, 'Diffuse');
+        CreateLabel(frm, cbDiffuseSize.Left + cbDiffuseSize.Width + 16, cbDiffuseFormat.Top + 15, 'Format');
+
+        cbNormalSize := TComboBox.Create(gbOptions);
+        cbNormalSize.Parent := gbOptions;
+        cbNormalSize.Left := 90;
+        cbNormalSize.Top := cbDiffuseSize.Top + 30;
+        cbNormalSize.Width := 50;
+        cbNormalSize.Style := csDropDownList;
+        cbNormalSize.Items.Assign(slResolutions);
+        cbNormalSize.ItemIndex := slResolutions.IndexOf(sNormalRes);
+        cbNormalSize.Hint := 'Sets the normal texture resolution.';
+        cbNormalSize.ShowHint := True;
+        CreateLabel(frm, 24, cbNormalSize.Top + 15, 'Normal Size');
 
         cbNormalFormat := TComboBox.Create(gbOptions);
         cbNormalFormat.Parent := gbOptions;
-        cbNormalFormat.Left := cbDiffuseFormat.Left + cbDiffuseFormat.Width + 54;
-        cbNormalFormat.Top := cbTextureSize.Top;
+        cbNormalFormat.Left := cbNormalSize.Left + cbNormalSize.Width + 52;
+        cbNormalFormat.Top := cbNormalSize.Top;
         cbNormalFormat.Width := 50;
         cbNormalFormat.Style := csDropDownList;
         cbNormalFormat.Items.Assign(slTextureFormats);
-        cbNormalFormat.ItemIndex := 0;
+        cbNormalFormat.ItemIndex := slTextureFormats.IndexOf(sNormalFormat);
         cbNormalFormat.Hint := 'Sets the normal texture format.';
         cbNormalFormat.ShowHint := True;
-        CreateLabel(frm, cbDiffuseFormat.Left + cbDiffuseFormat.Width + 16, cbNormalFormat.Top + 15, 'Normal');
+        CreateLabel(frm, cbNormalSize.Left + cbNormalSize.Width + 16, cbNormalFormat.Top + 15, 'Format');
+
+        cbSpecularSize := TComboBox.Create(gbOptions);
+        cbSpecularSize.Parent := gbOptions;
+        cbSpecularSize.Left := 90;
+        cbSpecularSize.Top := cbDiffuseSize.Top + 60;
+        cbSpecularSize.Width := 50;
+        cbSpecularSize.Style := csDropDownList;
+        cbSpecularSize.Items.Assign(slResolutions);
+        cbSpecularSize.ItemIndex := slResolutions.IndexOf(sSpecularRes);
+        cbSpecularSize.Hint := 'Sets the specular texture resolution.';
+        cbSpecularSize.ShowHint := True;
+        CreateLabel(frm, 24, cbSpecularSize.Top + 15, 'Specular Size');
 
         cbSpecularFormat := TComboBox.Create(gbOptions);
         cbSpecularFormat.Parent := gbOptions;
-        cbSpecularFormat.Left := cbNormalFormat.Left + cbNormalFormat.Width + 58;
-        cbSpecularFormat.Top := cbTextureSize.Top;
+        cbSpecularFormat.Left := cbSpecularSize.Left + cbSpecularSize.Width + 52;
+        cbSpecularFormat.Top := cbSpecularSize.Top;
         cbSpecularFormat.Width := 50;
         cbSpecularFormat.Style := csDropDownList;
         cbSpecularFormat.Items.Assign(slTextureFormats);
-        cbSpecularFormat.ItemIndex := 0;
+        cbSpecularFormat.ItemIndex := slTextureFormats.IndexOf(sSpecularFormat);
         cbSpecularFormat.Hint := 'Sets the specular texture format.';
         cbSpecularFormat.ShowHint := True;
-        CreateLabel(frm, cbNormalFormat.Left + cbNormalFormat.Width + 16, cbSpecularFormat.Top + 15, 'Specular');
+        CreateLabel(frm, cbSpecularSize.Left + cbSpecularSize.Width + 16, cbSpecularFormat.Top + 15, 'Format');
 
         btnStart := TButton.Create(gbOptions);
         btnStart.Parent := gbOptions;
         btnStart.Caption := 'Start';
         btnStart.ModalResult := mrOk;
-        btnStart.Top := 102;
+        btnStart.Top := 162;
 
         btnCancel := TButton.Create(gbOptions);
         btnCancel.Parent := gbOptions;
@@ -233,23 +286,37 @@ begin
         end
         else Result := True;
 
-        sResolution := slResolutions[cbTextureSize.ItemIndex];
-        sDiffuse := slTextureFormats[cbDiffuseFormat.ItemIndex];
-        sNormal := slTextureFormats[cbNormalFormat.ItemIndex];
-        sSpecular := slTextureFormats[cbSpecularFormat.ItemIndex];
+        sDiffuseRes := slResolutions[cbDiffuseSize.ItemIndex];
+        sDiffuseFormat := slTextureFormats[cbDiffuseFormat.ItemIndex];
+        sNormalRes := slResolutions[cbNormalSize.ItemIndex];
+        sNormalFormat := slTextureFormats[cbNormalFormat.ItemIndex];
+        sSpecularRes := slResolutions[cbSpecularSize.ItemIndex];
+        sSpecularFormat := slTextureFormats[cbSpecularFormat.ItemIndex];
         bOnlyMissing := rbOnlyMissing.Checked;
+        bQuickFaceFix := rbFaceGenPreset.Checked;
 
-        if bOnlyMissing then AddMessage('Mode: Only Missing') else AddMessage('Mode: All');
-        AddMessage('Resolution: ' + sResolution);
-        AddMessage('Diffuse format: ' + sDiffuse);
-        AddMessage('Normal format: ' + sNormal);
-        AddMessage('Specular format: ' + sSpecular);
+        if bOnlyMissing then AddMessage('Mode: Only Missing') else if bQuickFaceFix then AddMessage('Mode: Quick Face Fix') else AddMessage('Mode: All');
+        AddMessage('Diffuse size: ' + sDiffuseRes);
+        AddMessage('Diffuse format: ' + sDiffuseFormat);
+        AddMessage('Normal size: ' + sNormalRes);
+        AddMessage('Normal format: ' + sNormalFormat);
+        AddMessage('Specular size: ' + sSpecularRes);
+        AddMessage('Specular format: ' + sSpecularFormat);
 
     finally
         frm.Free;
-        slTextureFormats.Free;
         slResolutions.Free;
     end;
+end;
+
+procedure RadioClick(Sender: TObject);
+begin
+    cbDiffuseSize.Enabled := not rbFaceGenPreset.Checked;
+    cbDiffuseFormat.Enabled := not rbFaceGenPreset.Checked;
+    cbNormalFormat.Enabled := not rbFaceGenPreset.Checked;
+    cbNormalSize.Enabled := not rbFaceGenPreset.Checked;
+    cbSpecularFormat.Enabled := not rbFaceGenPreset.Checked;
+    cbSpecularSize.Enabled := not rbFaceGenPreset.Checked;
 end;
 
 procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -328,13 +395,43 @@ procedure SetTexturesOptions;
 }
 var
     TFile: TFile;
-    reader, modified: string;
 begin
-    reader := TFile.ReadAllText(elricSettings);
-    AddMessage(reader);
-    modified := StringReplace(reader, '"512";//spec', '"1024";//spec', rfReplaceAll);
-    AddMessage(modified);
-    TFile.WriteAllText(elricSettings, modified);
+    sElricModifiedSettings := sElricReadSettings;
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1785, 3, sDiffuseFormat);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2231, 3, sNormalFormat);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2674, 3, sSpecularFormat);
+
+    sDiffuseRes := sDiffuseRes + '";//diff';
+    if Length(sDiffuseRes) <> 12 then sDiffuseRes := sDiffuseRes + 'x';
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1840, 12, sDiffuseRes);
+
+    sNormalRes := sNormalRes + '";//norm';
+    if Length(sNormalRes) <> 12 then sNormalRes := sNormalRes + 'x';
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2286, 12, sNormalRes);
+
+    sSpecularRes := sSpecularRes + '";//spec';
+    if Length(sSpecularRes) <> 12 then sSpecularRes := sSpecularRes + 'x';
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2729, 12, sSpecularRes);
+
+    //AddMessage(sElricModifiedSettings);
+    TFile.WriteAllText(elricSettings, sElricModifiedSettings);
+end;
+
+procedure ReadElricSettings;
+{
+    Initial reading of the Elric Settings file.
+}
+var
+    TFile: TFile;
+    idx: integer;
+begin
+    sElricReadSettings := TFile.ReadAllText(elricSettings);
+    sDiffuseFormat := MidStr(sElricReadSettings, 1785, 3);
+    sNormalFormat := MidStr(sElricReadSettings, 2231, 3);
+    sSpecularFormat := MidStr(sElricReadSettings, 2674, 3);
+    sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1840, 4), '"', '', rfReplaceAll);
+    sNormalRes := StringReplace(MidStr(sElricReadSettings, 2286, 4), '"', '', rfReplaceAll);
+    sSpecularRes := StringReplace(MidStr(sElricReadSettings, 2729, 4), '"', '', rfReplaceAll);
 end;
 
 // ----------------------------------------------------
@@ -517,7 +614,7 @@ begin
             if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
             if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
-            if bOnlyMissing then begin
+            if bOnlyMissing or bQuickFaceFix then begin
                 masterFile := GetFileName(MasterOrSelf(r));
                 relativeFormid := '00' + TrimRightChars(IntToHex(GetLoadOrderFormID(r), 8), 2);
                 if FaceGenExists(relativeFormid, masterFile) then continue;
@@ -527,6 +624,8 @@ begin
             AddRequiredElementMasters(r, iPluginFile, False, True);
             SortMasters(iPluginFile);
             npc := wbCopyElementToFile(r, iPluginFile, False, True);
+            if not bQuickFaceFix then continue;
+            SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
 
 
             //AddMessage(recordID);
