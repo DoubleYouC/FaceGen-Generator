@@ -52,7 +52,7 @@ else if(aeType == FileConverter.ConvertType.Texture)
         aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for specular facegen texture.");
         aTextureConverter.GenerateMipMaps = false;
 		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC5;//spec
-		aTextureConverter.QuarteringThreshold = "512";//spec
+		aTextureConverter.QuarteringThreshold = "512";//specx
 		aTextureConverter.ForceBelowThreshold = true;
     }
 }
