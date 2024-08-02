@@ -2,7 +2,7 @@
 Add-Type -AssemblyName System.Windows.Forms
 
 # Determine the directory of the current script
-$scriptDir = Split-Path -Path $PSCommandPath -Parent 
+$scriptDir = Split-Path -Path $PSCommandPath -Parent
 
 # Define the path to the JSON file in the same directory as the script
 $jsonFilePath = Join-Path -Path $scriptDir -ChildPath "xEditLocation.json"
@@ -16,6 +16,7 @@ $script:data = Join-Path $fo4 "data"
 $script:CK = Join-Path $fo4 "Creationkit.exe"
 $script:Archive2 = Join-Path $script:data "tools\archive2\archive2.exe"
 $script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
+$script:ElrichDir = Join-Path $script:fo4 "tools\elric"
 $script:Elrich = Join-Path $script:fo4 "tools\elric\elrich.exe"
 
 # Function to get or select the xEdit/FO4Edit path and executable
@@ -89,7 +90,7 @@ $registryValue = Get-ItemProperty -Path $regkeydir -Name "(Default)" -ErrorActio
 if ($registryValue -and $registryValue."(Default)") {
     # Extract the folder path from the '(Default)' value
     $mo2dir = Split-Path -Path $registryValue."(Default)" -Parent
-    
+
     # Output the folder path
     Write-Host "MO2 Install Path: $mo2dir"
 } else {
@@ -103,6 +104,7 @@ try {
     $script = Split-Path -Path $fo4EditExe -Parent
 
     $pas = Join-Path -Path $script -ChildPath "Edit Scripts\FaceGen Generator.pas"
+    $facegenfilterscript = Join-Path -Path $script -ChildPath "Edit Scripts\Elric\FaceGen.cs"
 
     # Debug output to confirm the $pas path
     #Write-Host "Path to .pas file: $pas"
@@ -115,19 +117,13 @@ try {
     $esp = [System.IO.Path]::GetFileName($script:facegenpatch)
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
-    if (!(Test-Path -Path $script:facegenpatch)) { 
+    if (!(Test-Path -Path $script:facegenpatch)) {
     Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -script:`"$pas`"" -Wait
     CheckForFacegenPatch
     }
-    Start-Process -FilePath $script:CK -ArgumentList "-ExportFaceGenData:$esp W32" -Wait
-    Start-Process -FilePath $script:Elrich `
-    -ArgumentList @(
-        "-PCMeshesESF `"$script:elrichdir\Settings\PCMeshes.esf`"",
-        "-FilterScript `"$script:elrichdir\Settings\FaceGen.cs`"",
-        "-ConvertTarget `"$mo2dir`"",
-        "-OutputDirectory `"$script:elrichdir\Processed`"",
-        "-CloseWhenFinished True"
-    ) `
+    Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -Wait
+    Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
+    -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.FilterScript=`"$facegenfilterscript`" -ElricOptions.ConvertTarget=`"$script:data`" -ElricOptions.OutputDirectory=`"$script:data`" -ElricOptions.CloseWhenFinished=True" `
     -Wait
 
 } catch {
