@@ -10,7 +10,16 @@ $jsonFilePath = Join-Path -Path $scriptDir -ChildPath "xEditLocation.json"
 # Variable to store location data
 $locationData = $null
 
+$script:regkey = 'HKLM:\Software\Wow6432Node\Bethesda Softworks\Fallout4'
+$script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
+$script:data = Join-Path $fo4 "data"
+$script:CK = Join-Path $fo4 "Creationkit.exe"
+$script:Archive2 = Join-Path $script:data "tools\archive2\archive2.exe"
+$script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
+$script:Elrich = Join-Path $script:fo4 "tools\elric\elrich.exe"
+
 # Function to get or select the xEdit/FO4Edit path and executable
+
 function GetOrSelectxEditPath {
     # Check if the JSON file exists and read the stored path and executable
     if (Test-Path $jsonFilePath) {
@@ -57,32 +66,74 @@ function GetOrSelectxEditPath {
     }
 }
 
+function CheckForFacegenPatch {
+
+    while ($true) {
+        if (Test-Path -Path $script:facegenpatch) {
+            Write-Host "facegenpatch.esp found."
+            break
+        } else {
+            Write-Host "Waiting for facegenpatch.esp..."
+            Start-Sleep -Seconds 10
+        }
+    }
+}
+
+# Define the full registry key path
+$regkeydir = "Registry::HKEY_CLASSES_ROOT\modl\shell\open\command"
+
+# Retrieve the '(Default)' value from the registry key
+$registryValue = Get-ItemProperty -Path $regkeydir -Name "(Default)" -ErrorAction SilentlyContinue
+
+# Check if the '(Default)' value was retrieved successfully
+if ($registryValue -and $registryValue."(Default)") {
+    # Extract the folder path from the '(Default)' value
+    $mo2dir = Split-Path -Path $registryValue."(Default)" -Parent
+    
+    # Output the folder path
+    Write-Host "MO2 Install Path: $mo2dir"
+} else {
+    Write-Host "Could not find MO2 installation path."
+}
+
 # Main script execution
 try {
     $fo4EditExe = GetOrSelectxEditPath
 
-    # Get the directory of the FO4Edit executable
     $script = Split-Path -Path $fo4EditExe -Parent
 
-    # Use Join-Path to construct the path to the .pas file
     $pas = Join-Path -Path $script -ChildPath "Edit Scripts\FaceGen Generator.pas"
 
-    # Debug output to confirm the constructed path
-    Write-Host "Path to .pas file: $pas"
+    # Debug output to confirm the $pas path
+    #Write-Host "Path to .pas file: $pas"
 
     # Check if the .pas file exists before trying to run the process
-    if (-not (Test-Path -Path $pas)) {
+    if (!(Test-Path -Path $pas)) {
         Write-Host "ERROR: The .pas file does not exist at the specified path: $pas"
         exit
     }
-
+    $esp = [System.IO.Path]::GetFileName($script:facegenpatch)
+    $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
+    if (!(Test-Path -Path $script:facegenpatch)) { 
     Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -script:`"$pas`"" -Wait
+    CheckForFacegenPatch
+    }
+    Start-Process -FilePath $script:CK -ArgumentList "-ExportFaceGenData:$esp W32" -Wait
+    Start-Process -FilePath $script:Elrich `
+    -ArgumentList @(
+        "-PCMeshesESF `"$script:elrichdir\Settings\PCMeshes.esf`"",
+        "-FilterScript `"$script:elrichdir\Settings\FaceGen.cs`"",
+        "-ConvertTarget `"$mo2dir`"",
+        "-OutputDirectory `"$script:elrichdir\Processed`"",
+        "-CloseWhenFinished True"
+    ) `
+    -Wait
 
 } catch {
     Write-Host "`nAn unexpected error occurred.`n"
+    Write-Error $_
     pause
     Write-Output "Done"
     exit
 }
-
