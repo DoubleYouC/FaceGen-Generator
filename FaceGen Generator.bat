@@ -1,0 +1,1 @@
+powershell .\Toast-Facegen.ps1 --noexit
