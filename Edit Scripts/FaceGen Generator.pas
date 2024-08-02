@@ -406,24 +406,24 @@ var
     TFile: TFile;
 begin
     sElricModifiedSettings := sElricReadSettings;
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2290, 3, sNormalFormat);
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2701, 3, sSpecularFormat);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2281, 3, sNormalFormat);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2692, 3, sSpecularFormat);
 
-    if SameText(sDiffuseFormat, 'Auto') then sDiffuseFormat := '//aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC7;//diffu'
-    else sDiffuseFormat := 'aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC7;//diffuse'
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1773, 111, sDiffuseFormat);
+    if SameText(sDiffuseFormat, 'Auto') then sDiffuseFormat := '//'
+    else sDiffuseFormat := 'aT';
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1773, 2, sDiffuseFormat);
 
     sDiffuseRes := sDiffuseRes + '";//diff';
     if Length(sDiffuseRes) <> 12 then sDiffuseRes := sDiffuseRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1929, 12, sDiffuseRes);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1920, 12, sDiffuseRes);
 
     sNormalRes := sNormalRes + '";//norm';
     if Length(sNormalRes) <> 12 then sNormalRes := sNormalRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2345, 12, sNormalRes);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2336, 12, sNormalRes);
 
     sSpecularRes := sSpecularRes + '";//spec';
     if Length(sSpecularRes) <> 12 then sSpecularRes := sSpecularRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2756, 12, sSpecularRes);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2747, 12, sSpecularRes);
 
     //AddMessage(sElricModifiedSettings);
     TFile.WriteAllText(elricSettings, sElricModifiedSettings);
@@ -439,11 +439,11 @@ var
 begin
     sElricReadSettings := TFile.ReadAllText(elricSettings);
     if SameText(MidStr(sElricReadSettings, 1773, 2), '//') then sDiffuseFormat := 'Auto' else sDiffuseFormat := 'BC7';
-    sNormalFormat := MidStr(sElricReadSettings, 2290, 3);
-    sSpecularFormat := MidStr(sElricReadSettings, 2701, 3);
-    sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1929, 4), '"', '', rfReplaceAll);
-    sNormalRes := StringReplace(MidStr(sElricReadSettings, 2345, 4), '"', '', rfReplaceAll);
-    sSpecularRes := StringReplace(MidStr(sElricReadSettings, 2756, 4), '"', '', rfReplaceAll);
+    sNormalFormat := MidStr(sElricReadSettings, 2281, 3);
+    sSpecularFormat := MidStr(sElricReadSettings, 2692, 3);
+    sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1920, 4), '"', '', rfReplaceAll);
+    sNormalRes := StringReplace(MidStr(sElricReadSettings, 2336, 4), '"', '', rfReplaceAll);
+    sSpecularRes := StringReplace(MidStr(sElricReadSettings, 2747, 4), '"', '', rfReplaceAll);
 end;
 
 // ----------------------------------------------------

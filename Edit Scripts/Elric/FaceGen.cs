@@ -36,7 +36,7 @@ else if(aeType == FileConverter.ConvertType.Texture)
     {
         aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Compressing to DDS file.");
         aTextureConverter.GenerateMipMaps = false;
-		//aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC7;//diffu
+		//extureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC7;
 		aTextureConverter.QuarteringThreshold = "1024";//diff
 		aTextureConverter.ForceBelowThreshold = true;
     }
