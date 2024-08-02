@@ -438,7 +438,7 @@ var
     idx: integer;
 begin
     sElricReadSettings := TFile.ReadAllText(elricSettings);
-    if SameText(MidStr(sElricReadSettings, 1773, 2), '//') then sDiffuseFormat := 'Auto' else sDiffuseFormat := 'BC7'
+    if SameText(MidStr(sElricReadSettings, 1773, 2), '//') then sDiffuseFormat := 'Auto' else sDiffuseFormat := 'BC7';
     sNormalFormat := MidStr(sElricReadSettings, 2290, 3);
     sSpecularFormat := MidStr(sElricReadSettings, 2701, 3);
     sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1929, 4), '"', '', rfReplaceAll);
