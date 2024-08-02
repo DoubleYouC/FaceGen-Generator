@@ -4,8 +4,6 @@ var filename = Path.GetFileName(filePath);
 
 if(aeType == FileConverter.ConvertType.Mesh)
 {
-    if(filePath.Contains("bak\\meshes"))
-		eprocess = FilterScript.Result.Skip;
 	if(!filePath.Contains("meshes\\actors\\character\\facegendata\\facegeom"))
 		eprocess = FilterScript.Result.Skip; //skip anything that isn't facegen
 	if (filePath.Contains(".nif"))
@@ -27,21 +25,24 @@ if(aeType == FileConverter.ConvertType.Mesh)
 }
 else if(aeType == FileConverter.ConvertType.Texture)
 {
-	if(filePath.Contains("bak\\textures"))
-		eprocess = FilterScript.Result.Skip;
 	if(!filePath.Contains("textures\\actors\\character\\facecustomization"))
 		eprocess = FilterScript.Result.Skip; //skip anything that isn't facegen
+	if(filePath.Contains(".dds") && File.Exists(filePath.Replace(".dds", ".tga").Replace("ddstextures", "tgatextures")))
+    {
+        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "TGA override: DDS not processed.");
+        eprocess = FilterScript.Result.Skip;
+    }
 	if(filePath.Contains("_d.tga"))
     {
-        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for diffuse facegen texture.");
+        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Compressing to DDS file.");
         aTextureConverter.GenerateMipMaps = false;
-		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC1;//diff
+		//aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC7;//diffu
 		aTextureConverter.QuarteringThreshold = "1024";//diff
 		aTextureConverter.ForceBelowThreshold = true;
     }
     if(filePath.Contains("_msn.tga"))
     {
-        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for normal facegen texture.");
+        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Compressing to DDS file.");
         aTextureConverter.GenerateMipMaps = false;
 		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC1;//norm
 		aTextureConverter.QuarteringThreshold = "1024";//norm
@@ -49,7 +50,7 @@ else if(aeType == FileConverter.ConvertType.Texture)
     }
 	if(filePath.Contains("_s.tga"))
     {
-        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Setting compression method for specular facegen texture.");
+        aTextureConverter.LogMessage(aLoggerID, InfoType.Info, "Compressing to DDS file.");
         aTextureConverter.GenerateMipMaps = false;
 		aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC5;//spec
 		aTextureConverter.QuarteringThreshold = "512";//specx

@@ -12,7 +12,7 @@ var
     bQuickFaceFix, bOnlyMissing, bSteamAppIDTxtExists: Boolean;
     sResolution, sDiffuseFormat, sDiffuseRes, sNormalFormat, sNormalRes, sSpecularFormat, sSpecularRes, sCKFixesINI, sElricReadSettings, sElricModifiedSettings: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextureFormats, slTextures, slMaterials, slAssets, slPluginFiles: TStringList;
+    slModels, slTextureFormats, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextureFormats: TStringList;
     cbDiffuseSize, cbDiffuseFormat, cbNormalSize, cbNormalFormat, cbSpecularSize, cbSpecularFormat: TComboBox;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
 
@@ -72,6 +72,8 @@ begin
     slMaterials.Free;
     slAssets.Free;
     slPluginFiles.Free;
+    slTextureFormats.Free;
+    slDiffuseTextureFormats.Free;
     Result := 0;
 end;
 
@@ -104,6 +106,10 @@ begin
     slTextureFormats.Add('BC1');
     slTextureFormats.Add('BC5');
     slTextureFormats.Add('BC7');
+
+    slDiffuseTextureFormats := TStringList.Create;
+    slDiffuseTextureFormats.Add('Auto');
+    slDiffuseTextureFormats.Add('BC7');
 end;
 
 // ----------------------------------------------------
@@ -204,9 +210,10 @@ begin
         cbDiffuseFormat.Top := cbDiffuseSize.Top;
         cbDiffuseFormat.Width := 50;
         cbDiffuseFormat.Style := csDropDownList;
-        cbDiffuseFormat.Items.Assign(slTextureFormats);
-        cbDiffuseFormat.ItemIndex := slTextureFormats.IndexOf(sDiffuseFormat);
-        cbDiffuseFormat.Hint := 'Sets the diffuse texture format.';
+        cbDiffuseFormat.Items.Assign(slDiffuseTextureFormats);
+        cbDiffuseFormat.ItemIndex := slDiffuseTextureFormats.IndexOf(sDiffuseFormat);
+        cbDiffuseFormat.Hint := 'Sets the diffuse texture format.'
+            + #13#10 + '(Auto is a mix of BC1 and BC3)';
         cbDiffuseFormat.ShowHint := True;
         CreateLabel(frm, cbDiffuseSize.Left + cbDiffuseSize.Width + 16, cbDiffuseFormat.Top + 15, 'Format');
 
@@ -399,21 +406,24 @@ var
     TFile: TFile;
 begin
     sElricModifiedSettings := sElricReadSettings;
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1785, 3, sDiffuseFormat);
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2231, 3, sNormalFormat);
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2674, 3, sSpecularFormat);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2290, 3, sNormalFormat);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2701, 3, sSpecularFormat);
+
+    if SameText(sDiffuseFormat, 'Auto') then sDiffuseFormat := '//aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC7;//diffu'
+    else sDiffuseFormat := 'aTextureConverter.ForcedFormat = Bethesda.Tools.ElricInterop.TextureConverter.ForcedTextureFormat.BC7;//diffuse'
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1773, 111, sDiffuseFormat);
 
     sDiffuseRes := sDiffuseRes + '";//diff';
     if Length(sDiffuseRes) <> 12 then sDiffuseRes := sDiffuseRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1840, 12, sDiffuseRes);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1929, 12, sDiffuseRes);
 
     sNormalRes := sNormalRes + '";//norm';
     if Length(sNormalRes) <> 12 then sNormalRes := sNormalRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2286, 12, sNormalRes);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2345, 12, sNormalRes);
 
     sSpecularRes := sSpecularRes + '";//spec';
     if Length(sSpecularRes) <> 12 then sSpecularRes := sSpecularRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2729, 12, sSpecularRes);
+    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2756, 12, sSpecularRes);
 
     //AddMessage(sElricModifiedSettings);
     TFile.WriteAllText(elricSettings, sElricModifiedSettings);
@@ -428,12 +438,12 @@ var
     idx: integer;
 begin
     sElricReadSettings := TFile.ReadAllText(elricSettings);
-    sDiffuseFormat := MidStr(sElricReadSettings, 1785, 3);
-    sNormalFormat := MidStr(sElricReadSettings, 2231, 3);
-    sSpecularFormat := MidStr(sElricReadSettings, 2674, 3);
-    sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1840, 4), '"', '', rfReplaceAll);
-    sNormalRes := StringReplace(MidStr(sElricReadSettings, 2286, 4), '"', '', rfReplaceAll);
-    sSpecularRes := StringReplace(MidStr(sElricReadSettings, 2729, 4), '"', '', rfReplaceAll);
+    if SameText(MidStr(sElricReadSettings, 1773, 2), '//') then sDiffuseFormat := 'Auto' else sDiffuseFormat := 'BC7'
+    sNormalFormat := MidStr(sElricReadSettings, 2290, 3);
+    sSpecularFormat := MidStr(sElricReadSettings, 2701, 3);
+    sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1929, 4), '"', '', rfReplaceAll);
+    sNormalRes := StringReplace(MidStr(sElricReadSettings, 2345, 4), '"', '', rfReplaceAll);
+    sSpecularRes := StringReplace(MidStr(sElricReadSettings, 2756, 4), '"', '', rfReplaceAll);
 end;
 
 // ----------------------------------------------------
