@@ -80,6 +80,29 @@ function CheckForFacegenPatch {
     }
 }
 
+$steamapiPath = Join-Path $script:fo4 "steam_api64.dll"
+$steamapiBackupPath = Join-Path $script:fo4 "steam_api64_downgradeBackup.dll"
+$steamapiTempPath = Join-Path $script:fo4 "steam_api64.dll.tempbackup"
+$script:steamapiWasReplaced = $false
+function HandleSteamApiMismatch {
+    # In case the user has latest Steam Creation Kit but downgraded game executable.
+
+    $steamapiHash = Get-FileHash -Path $steamapiPath
+    $creationKitHash = Get-FileHash -Path $script:CK
+    if ($steamapiHash.Hash -eq `
+    "81321A5CB72AE3F81243FD0B0D8928A063CA09129AB0878573BD36A28422EC4C" `
+    -and $creationKitHash.Hash -eq `
+    "051462F19DBE6A88CC0432297F88F6B00BBE11C5A0BE0FCEA934DCCE985B31A2") {
+        Write-Host "Creation Kit is NG but has OG steam_api64.dll"
+        if (Test-Path -Path $steamapiBackupPath) {
+            Write-Host "NG steam_api64.dll backup found."
+            Copy-Item -Path $steamapiPath -Destination $steamapiTempPath
+            Copy-Item -Path $steamapiBackupPath -Destination $steamapiPath
+            $script:steamapiWasReplaced = $true
+        }
+    }
+}
+
 # Define the full registry key path
 $regkeydir = "Registry::HKEY_CLASSES_ROOT\modl\shell\open\command"
 
@@ -118,10 +141,14 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -script:`"$pas`"" -Wait
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -nobuildrefs -script:`"$pas`"" -Wait
     CheckForFacegenPatch
     }
+    HandleSteamApiMismatch
     Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -Wait
+    if ($script:steamapiWasReplaced) {
+        Copy-Item $steamapiTempPath -Destination $steamapiPath
+    }
     Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
     -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.FilterScript=`"$facegenfilterscript`" -ElricOptions.ConvertTarget=`"$script:data`" -ElricOptions.OutputDirectory=`"$script:data`" -ElricOptions.CloseWhenFinished=True" `
     -Wait
