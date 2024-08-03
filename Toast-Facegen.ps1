@@ -5,7 +5,7 @@ Add-Type -AssemblyName System.Windows.Forms
 $scriptDir = Split-Path -Path $PSCommandPath -Parent
 
 # Define the path to the JSON file in the same directory as the script
-$jsonFilePath = Join-Path -Path $scriptDir -ChildPath "xEditLocation.json"
+$jsonFilePath = Join-Path -Path $scriptDir -ChildPath "config.json"
 
 # Variable to store location data
 $locationData = $null
@@ -18,6 +18,8 @@ $script:Archive2 = Join-Path $script:data "tools\archive2\archive2.exe"
 $script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
 $script:ElrichDir = Join-Path $script:fo4 "tools\elric"
 $script:Elrich = Join-Path $script:fo4 "tools\elric\elrich.exe"
+$script:xEditPath = $scriptDir #set here as default for the file open dialog
+$script:xEditExecutable = $null
 
 # Function to get or select the xEdit/FO4Edit path and executable
 
@@ -27,37 +29,40 @@ function GetOrSelectxEditPath {
         $locationData = Get-Content -Path $jsonFilePath | ConvertFrom-Json
 
         # Make sure we are getting the correct properties as strings
-        $path = [string]$locationData.Directory
-        $executable = [string]$locationData.Executable
-        Write-Host "Found stored path to xEdit/FO4Edit: $path"
-        Write-Host "Found stored executable: $executable"
-        $fullPath = Join-Path -Path $path -ChildPath $executable
+        $script:xEditPath = [string]$locationData.xEditDirectory
+        $script:xEditExecutable = [string]$locationData.xEditExecutable
+        Write-Host "Found stored path to xEdit/FO4Edit: $script:xEditPath"
+        Write-Host "Found stored executable: $script:xEditExecutable"
+        $fullPath = Join-Path -Path $script:xEditPath -ChildPath $script:xEditExecutable
 
         # Verify if the executable exists
         if (Test-Path -Path $fullPath) {
             return $fullPath
         } else {
+            $script:xEditPath = $scriptDir #set here as default for the file open dialog
+            $script:xEditExecutable = $null
             Write-Host "`nERROR: The stored executable does not exist. Please select a new one.`n"
         }
     }
+    # Fetch xEdit location from registry HKCR\FO4Script\DefaultIcon
+    try {
+        $xEditRegKey = Get-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\FO4Script\DefaultIcon' -ErrorAction Stop
+        $script:xEditPath = [string] $xEditRegKey."(default)"
+    }
+    catch {
+        Write-Host "`nCouldn't detect xEdit Location from the registry.`n"
+    }
+
 
     # If JSON file doesn't exist or executable is not found, prompt the user to select it
     $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
     $openFileDialog.Title = "Select FO4Edit or xEdit executable"
-    $openFileDialog.Filter = "FO4Edit or xEdit|fo4edit.exe;xedit.exe"
-    $openFileDialog.InitialDirectory = $scriptDir
+    $openFileDialog.Filter = "FO4Edit or xEdit|fo4edit.exe;fo4edit64.exe;xedit.exe;xedit64.exe"
+    $openFileDialog.InitialDirectory = $script:xEditPath
     if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         $selectedExe = $openFileDialog.FileName
-        $selectedPath = Split-Path -Path $selectedExe -Parent
-        $selectedExecutable = [System.IO.Path]::GetFileName($selectedExe)
-
-        # Save the path and executable to the JSON file
-        $locationData = @{
-            Directory = $selectedPath
-            Executable = $selectedExecutable
-        }
-        $locationData | ConvertTo-Json -Compress | Set-Content -Path $jsonFilePath -Force
-        Write-Host "`nPath and executable saved successfully.`n"
+        $script:xEditPath = Split-Path -Path $selectedExe -Parent
+        $script:xEditExecutable = [System.IO.Path]::GetFileName($selectedExe)
 
         return $selectedExe
     } else {
@@ -65,6 +70,17 @@ function GetOrSelectxEditPath {
         pause
         exit
     }
+}
+
+function SaveSettings {
+    # Save the settings
+    $locationData = @{
+        xEditDirectory = $script:xEditPath
+        xEditExecutable = $script:xEditExecutable
+        scriptDirectory = $scriptDir
+    }
+    $locationData | ConvertTo-Json -Compress | Set-Content -Path $jsonFilePath -Force
+    Write-Host "`nSaved settings successfully.`n"
 }
 
 function CheckForFacegenPatch {
@@ -123,6 +139,7 @@ if ($registryValue -and $registryValue."(Default)") {
 # Main script execution
 try {
     $fo4EditExe = GetOrSelectxEditPath
+    SaveSettings
 
     $script = Split-Path -Path $fo4EditExe -Parent
 
