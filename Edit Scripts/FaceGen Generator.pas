@@ -300,7 +300,7 @@ begin
         else Result := True;
 
         sDiffuseRes := slResolutions[cbDiffuseSize.ItemIndex];
-        sDiffuseFormat := slTextureFormats[cbDiffuseFormat.ItemIndex];
+        sDiffuseFormat := slDiffuseTextureFormats[cbDiffuseFormat.ItemIndex];
         sNormalRes := slResolutions[cbNormalSize.ItemIndex];
         sNormalFormat := slTextureFormats[cbNormalFormat.ItemIndex];
         sSpecularRes := slResolutions[cbSpecularSize.ItemIndex];
@@ -632,7 +632,7 @@ begin
             if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
             if bOnlyMissing or bQuickFaceFix then begin
                 masterFile := GetFileName(MasterOrSelf(r));
-                relativeFormid := '00' + TrimRightChars(IntToHex(GetLoadOrderFormID(r), 8), 2);
+                relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
                 if FaceGenExists(relativeFormid, masterFile) then continue;
             end;
             slNpc.Add(recordId);
