@@ -1,1 +1,1 @@
-powershell .\Toast-Facegen.ps1 --noexit
+powershell -noprofile -executionpolicy bypass -file .\Toast-Facegen.ps1
