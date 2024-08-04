@@ -160,7 +160,7 @@ try {
     $script = Split-Path -Path $fo4EditExe -Parent
 
     $pas = Join-Path -Path $script -ChildPath "Edit Scripts\FaceGen Generator.pas"
-    $facegenfilterscript = Join-Path -Path $script -ChildPath "Edit Scripts\Elric\FaceGen.cs"
+    $facegenfilterscript = Join-Path -Path $script -ChildPath "Elric\FaceGen.cs"
 
     # Debug output to confirm the $pas path
     #Write-Host "Path to .pas file: $pas"
@@ -174,7 +174,7 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -nobuildrefs -script:`"$pas`" -D:`"$script:data`"" -Wait
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -nobuildrefs -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
     CheckForFacegenPatch
     }
     HandleSteamApiMismatch

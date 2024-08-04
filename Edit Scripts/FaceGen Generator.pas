@@ -9,8 +9,8 @@ unit FaceGen;
 
 var
     iPluginFile: IInterface;
-    bQuickFaceFix, bOnlyMissing, bSteamAppIDTxtExists: Boolean;
-    sResolution, sDiffuseFormat, sDiffuseRes, sNormalFormat, sNormalRes, sSpecularFormat, sSpecularRes, sCKFixesINI, sElricReadSettings, sElricModifiedSettings: string;
+    bBatchMode, bQuickFaceFix, bOnlyMissing, bSteamAppIDTxtExists: Boolean;
+    sResolution, sDiffuseFormat, sDiffuseRes, sNormalFormat, sNormalRes, sSpecularFormat, sSpecularRes, sCKFixesINI, sElricReadSettings, sElricModifiedSettings, sVEFSDir, elricSettings: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
     slModels, slTextureFormats, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextureFormats: TStringList;
     cbDiffuseSize, cbDiffuseFormat, cbNormalSize, cbNormalFormat, cbSpecularSize, cbSpecularFormat: TComboBox;
@@ -18,7 +18,6 @@ var
 
 const
     sPatchName = 'FaceGenPatch.esp';
-    elricSettings = ScriptsPath() + 'Elric\FaceGen.cs';
 
 // ----------------------------------------------------
 // Main functions and procedures go up immediately below.
@@ -33,11 +32,17 @@ var
 begin
     CreateObjects;
 
+    bBatchMode := CheckLaunchArguments;
+
     ReadElricSettings;
 
-    if not MainMenuForm then begin
-        Result := 1;
-        Exit;
+    if not bBatchMode then begin
+
+        if not MainMenuForm then begin
+            Result := 1;
+            Exit;
+        end;
+
     end;
 
     if not bQuickFaceFix then begin
@@ -448,6 +453,31 @@ begin
     sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1920, 4), '"', '', rfReplaceAll);
     sNormalRes := StringReplace(MidStr(sElricReadSettings, 2336, 4), '"', '', rfReplaceAll);
     sSpecularRes := StringReplace(MidStr(sElricReadSettings, 2747, 4), '"', '', rfReplaceAll);
+end;
+
+function CheckLaunchArguments: Boolean;
+var
+    i: integer;
+    launchOption: string;
+begin
+    Result := False;
+    if paramcount > 0 then begin
+        for i:=1 to paramcount do begin
+            launchOption := LowerCase(paramstr(i));
+            AddMessage('Option: ' + launchOption);
+            if Pos('-bbatchmode', launchOption) > 0 then begin
+                Result := True;
+                continue;
+            end;
+            if Pos('-vefsdir:', launchOption) > 0 then begin
+                sVEFSDir := StringReplace(TrimRightChars(launchOption, 9), '"', '', rfReplaceAll);
+                AddMessage('VEFS Dir: ' + sVEFSDir);
+                elricSettings = sVEFSDir + '\Elric\FaceGen.cs';
+                AddMessage('Elric Filter Script: ' + elricSettings);
+                continue;
+            end;
+        end;
+    end;
 end;
 
 // ----------------------------------------------------
