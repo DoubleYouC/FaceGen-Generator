@@ -11,7 +11,21 @@ $jsonFilePath = Join-Path -Path $scriptDir -ChildPath "config.json"
 $locationData = $null
 
 $script:regkey = 'HKLM:\Software\Wow6432Node\Bethesda Softworks\Fallout4'
-$script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
+try {
+    $script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
+} catch {
+    $openFileDialogFo4 = New-Object System.Windows.Forms.OpenFileDialog
+    $openFileDialogFo4.Title = "Select Fallout4.exe"
+    $openFileDialogFo4.Filter = "Fallout 4|Fallout4.exe"
+    $openFileDialogFo4.InitialDirectory = $scriptDir
+    if ($openFileDialogFo4.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        $script:fo4 = Split-Path -Path $openFileDialogFo4.FileName -Parent
+    } else {
+        Write-Host "`nERROR: Fallout 4 directory not found.`n"
+        pause
+        exit
+    }
+}
 $script:data = Join-Path $fo4 "data"
 $script:CK = Join-Path $fo4 "Creationkit.exe"
 $script:Archive2 = Join-Path $script:data "tools\archive2\archive2.exe"
@@ -22,6 +36,8 @@ $script:xEditPath = $scriptDir #set here as default for the file open dialog
 $script:xEditExecutable = $null
 
 # Function to get or select the xEdit/FO4Edit path and executable
+
+
 
 function GetOrSelectxEditPath {
     # Check if the JSON file exists and read the stored path and executable
@@ -48,8 +64,7 @@ function GetOrSelectxEditPath {
     try {
         $xEditRegKey = Get-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\FO4Script\DefaultIcon' -ErrorAction Stop
         $script:xEditPath = [string] $xEditRegKey."(default)"
-    }
-    catch {
+    } catch {
         Write-Host "`nCouldn't detect xEdit Location from the registry.`n"
     }
 
@@ -78,6 +93,7 @@ function SaveSettings {
         xEditDirectory = $script:xEditPath
         xEditExecutable = $script:xEditExecutable
         scriptDirectory = $scriptDir
+        Fallout4Directory = $script:fo4
     }
     $locationData | ConvertTo-Json -Compress | Set-Content -Path $jsonFilePath -Force
     Write-Host "`nSaved settings successfully.`n"
@@ -158,7 +174,7 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -nobuildrefs -script:`"$pas`"" -Wait
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -nobuildrefs -script:`"$pas`" -D:`"$script:data`"" -Wait
     CheckForFacegenPatch
     }
     HandleSteamApiMismatch
