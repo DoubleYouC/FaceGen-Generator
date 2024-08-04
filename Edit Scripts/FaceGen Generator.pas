@@ -126,6 +126,7 @@ var
     pnl: TPanel;
     gbOptions: TGroupBox;
     slResolutions: TStringList;
+    uiScale:integer;
 begin
     frm := TForm.Create(nil);
     try
@@ -288,6 +289,9 @@ begin
         pnl.Height := 2;
 
         frm.ActiveControl := btnStart;
+        uiScale := Screen.PixelsPerInch * 100 / 96;
+        frm.ScaleBy(uiScale, 100);
+        frm.Font.Size := 8;
 
         if frm.ShowModal <> mrOk then begin
             Result := False;
