@@ -10,7 +10,7 @@ unit FaceGen;
 var
     iPluginFile: IInterface;
     bBatchMode, bQuickFaceFix, bOnlyMissing, bSteamAppIDTxtExists: Boolean;
-    sResolution, sDiffuseFormat, sDiffuseRes, sNormalFormat, sNormalRes, sSpecularFormat, sSpecularRes, sCKFixesINI, sElricReadSettings, sElricModifiedSettings, sVEFSDir, elricSettings: string;
+    sResolution, sDiffuseFormat, sDiffuseRes, sNormalFormat, sNormalRes, sSpecularFormat, sSpecularRes, sCKFixesINI, sElricReadSettings, sElricModifiedSettings, sVEFSDir, elricSettings, sPicVefs: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
     slModels, slTextureFormats, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextureFormats: TStringList;
     cbDiffuseSize, cbDiffuseFormat, cbNormalSize, cbNormalFormat, cbSpecularSize, cbSpecularFormat: TComboBox;
@@ -131,7 +131,9 @@ var
     pnl: TPanel;
     gbOptions: TGroupBox;
     slResolutions: TStringList;
-    uiScale:integer;
+    uiScale: integer;
+    picVefs: TPicture;
+    fImage: TImage;
 begin
     frm := TForm.Create(nil);
     try
@@ -140,20 +142,31 @@ begin
         slResolutions.Add('1024');
         slResolutions.Add('2048');
 
-        frm.Caption := 'FaceGen Generator';
+        frm.Caption := 'Vault-Tec Enhanced FaceGen System';
         frm.Width := 600;
-        frm.Height := 260;
+        frm.Height := 476;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
         frm.OnClose := frmOptionsFormClose;
         frm.OnKeyDown := FormKeyDown;
 
+        picVefs := TPicture.Create;
+        picVefs.LoadFromFile(sPicVefs);
+
+        fImage := TImage.Create(frm);
+		fImage.Picture := picVefs;
+		fImage.Parent := frm;
+        fImage.Width := 576;
+		fImage.Height := 203;
+		fImage.Left := 6;
+		fImage.Top := 12;
+
         gbOptions := TGroupBox.Create(frm);
         gbOptions.Parent := frm;
+        gbOptions.Top := fImage.Top + fImage.Height + 24;
+        gbOptions.Width := frm.Width - 24;
         gbOptions.Left := 6;
-        gbOptions.Top := 12;
-        gbOptions.Width := frm.Width - 30;
         gbOptions.Caption := 'Options';
         gbOptions.Height := 194;
 
@@ -208,7 +221,7 @@ begin
         cbDiffuseSize.ItemIndex := slResolutions.IndexOf(sDiffuseRes);
         cbDiffuseSize.Hint := 'Sets the diffuse texture resolution.';
         cbDiffuseSize.ShowHint := True;
-        CreateLabel(frm, 24, cbDiffuseSize.Top + 15, 'Diffuse Size');
+        CreateLabel(gbOptions, 20, cbDiffuseSize.Top + 3, 'Diffuse Size');
 
         cbDiffuseFormat := TComboBox.Create(gbOptions);
         cbDiffuseFormat.Parent := gbOptions;
@@ -221,7 +234,7 @@ begin
         cbDiffuseFormat.Hint := 'Sets the diffuse texture format.'
             + #13#10 + '(Auto is a mix of BC1 and BC3)';
         cbDiffuseFormat.ShowHint := True;
-        CreateLabel(frm, cbDiffuseSize.Left + cbDiffuseSize.Width + 16, cbDiffuseFormat.Top + 15, 'Format');
+        CreateLabel(gbOptions, cbDiffuseSize.Left + cbDiffuseSize.Width + 12, cbDiffuseFormat.Top + 3, 'Format');
 
         cbNormalSize := TComboBox.Create(gbOptions);
         cbNormalSize.Parent := gbOptions;
@@ -233,7 +246,7 @@ begin
         cbNormalSize.ItemIndex := slResolutions.IndexOf(sNormalRes);
         cbNormalSize.Hint := 'Sets the normal texture resolution.';
         cbNormalSize.ShowHint := True;
-        CreateLabel(frm, 24, cbNormalSize.Top + 15, 'Normal Size');
+        CreateLabel(gbOptions, 20, cbNormalSize.Top + 3, 'Normal Size');
 
         cbNormalFormat := TComboBox.Create(gbOptions);
         cbNormalFormat.Parent := gbOptions;
@@ -245,7 +258,7 @@ begin
         cbNormalFormat.ItemIndex := slTextureFormats.IndexOf(sNormalFormat);
         cbNormalFormat.Hint := 'Sets the normal texture format.';
         cbNormalFormat.ShowHint := True;
-        CreateLabel(frm, cbNormalSize.Left + cbNormalSize.Width + 16, cbNormalFormat.Top + 15, 'Format');
+        CreateLabel(gbOptions, cbNormalSize.Left + cbNormalSize.Width + 12, cbNormalFormat.Top + 3, 'Format');
 
         cbSpecularSize := TComboBox.Create(gbOptions);
         cbSpecularSize.Parent := gbOptions;
@@ -257,7 +270,7 @@ begin
         cbSpecularSize.ItemIndex := slResolutions.IndexOf(sSpecularRes);
         cbSpecularSize.Hint := 'Sets the specular texture resolution.';
         cbSpecularSize.ShowHint := True;
-        CreateLabel(frm, 24, cbSpecularSize.Top + 15, 'Specular Size');
+        CreateLabel(gbOptions, 20, cbSpecularSize.Top + 3, 'Specular Size');
 
         cbSpecularFormat := TComboBox.Create(gbOptions);
         cbSpecularFormat.Parent := gbOptions;
@@ -269,7 +282,7 @@ begin
         cbSpecularFormat.ItemIndex := slTextureFormats.IndexOf(sSpecularFormat);
         cbSpecularFormat.Hint := 'Sets the specular texture format.';
         cbSpecularFormat.ShowHint := True;
-        CreateLabel(frm, cbSpecularSize.Left + cbSpecularSize.Width + 16, cbSpecularFormat.Top + 15, 'Format');
+        CreateLabel(gbOptions, cbSpecularSize.Left + cbSpecularSize.Width + 12, cbSpecularFormat.Top + 3, 'Format');
 
         btnStart := TButton.Create(gbOptions);
         btnStart.Parent := gbOptions;
@@ -470,10 +483,10 @@ begin
                 continue;
             end;
             if Pos('-vefsdir:', launchOption) > 0 then begin
-                sVEFSDir := StringReplace(TrimRightChars(launchOption, 9), '"', '', rfReplaceAll);
+                sVEFSDir := TrimRightChars(launchOption, 9);
                 AddMessage('VEFS Dir: ' + sVEFSDir);
-                elricSettings = sVEFSDir + '\Elric\FaceGen.cs';
-                AddMessage('Elric Filter Script: ' + elricSettings);
+                elricSettings := sVEFSDir + '\Elric\FaceGen.cs';
+                sPicVefs := sVEFSDir + '\Images\vefs.png';
                 continue;
             end;
         end;
