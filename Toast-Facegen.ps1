@@ -160,7 +160,7 @@ try {
     $script = Split-Path -Path $fo4EditExe -Parent
 
     $pas = Join-Path -Path $script -ChildPath "Edit Scripts\FaceGen Generator.pas"
-    $facegenfilterscript = Join-Path -Path $script -ChildPath "Elric\FaceGen.cs"
+    $facegenfilterscript = Join-Path -Path $scriptDir -ChildPath "Elric\FaceGen.cs"
 
     # Debug output to confirm the $pas path
     #Write-Host "Path to .pas file: $pas"
