@@ -28,12 +28,20 @@ try {
 }
 $script:data = Join-Path $fo4 "data"
 $script:CK = Join-Path $fo4 "Creationkit.exe"
-$script:Archive2 = Join-Path $script:data "tools\archive2\archive2.exe"
+$script:Archive2 = Join-Path $script:fo4 "tools\archive2\archive2.exe"
 $script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
 $script:ElrichDir = Join-Path $script:fo4 "tools\elric"
 $script:Elrich = Join-Path $script:fo4 "tools\elric\elrich.exe"
 $script:xEditPath = $scriptDir #set here as default for the file open dialog
 $script:xEditExecutable = $null
+$script:meshes = Join-Path $script:data "Meshes"
+$script:textures = Join-Path $script:data "Textures"
+
+$script:meshesToDelete = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
+$script:texturesToDelete = Join-Path $script:data "Textures\Actors\Character\FaceCustomization"
+
+$meshesarchive = Join-Path $script:data "FaceGenPatch - Main.ba2"
+$texturesarchive = Join-Path $script:data "FaceGenPatch - Textures.ba2"
 
 # Function to get or select the xEdit/FO4Edit path and executable
 
@@ -174,7 +182,7 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -autoload -nobuildrefs -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
     CheckForFacegenPatch
     }
     HandleSteamApiMismatch
@@ -185,6 +193,31 @@ try {
     Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
     -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.FilterScript=`"$facegenfilterscript`" -ElricOptions.ConvertTarget=`"$script:data`" -ElricOptions.OutputDirectory=`"$script:data`" -ElricOptions.CloseWhenFinished=True" `
     -Wait
+
+    #Create meshes archive
+    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:data`" -c=`"$meshesarchive`" -f=General -includeFilters=[Mm]eshes\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Gg]en[Dd]ata\\[Ff]ace[Gg]eom\\" -Wait
+
+    #Create textures archive
+    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=[Tt]extures\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Cc]ustomization\\" -Wait
+
+    #Delete loose files
+
+    $wshell = New-Object -ComObject Wscript.Shell
+    $decision = $wshell.Popup("Delete loose files at `"$script:meshesToDelete`" ?",0,"Alert",32+4)
+    if ($decision -eq 6) {
+        Remove-Item -LiteralPath "$script:meshesToDelete" -Recurse
+        Write-Host "`"$script:meshesToDelete`" was deleted."
+    } else {
+        Write-Host "`"$script:meshesToDelete`" was NOT deleted."
+    }
+
+    $decision = $wshell.Popup("Delete loose files at `"$script:texturesToDelete`" ?",0,"Alert",32+4)
+    if ($decision -eq 6) {
+        Remove-Item -LiteralPath "$script:texturesToDelete" -Recurse
+        Write-Host "`"$script:texturesToDelete`" was deleted."
+    } else {
+        Write-Host "`"$script:texturesToDelete`" was NOT deleted."
+    }
 
 } catch {
     Write-Host "`nAn unexpected error occurred.`n"
