@@ -144,7 +144,7 @@ begin
 
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
         frm.Width := 600;
-        frm.Height := 476;
+        frm.Height := 524;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
@@ -161,6 +161,7 @@ begin
 		fImage.Height := 203;
 		fImage.Left := 6;
 		fImage.Top := 12;
+        fImage.Stretch := True;
 
         gbOptions := TGroupBox.Create(frm);
         gbOptions.Parent := frm;
