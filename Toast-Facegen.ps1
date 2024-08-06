@@ -32,13 +32,17 @@ $script:Archive2 = Join-Path $script:fo4 "tools\archive2\archive2.exe"
 $script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
 $script:ElrichDir = Join-Path $script:fo4 "tools\elric"
 $script:Elrich = Join-Path $script:fo4 "tools\elric\elrich.exe"
+$script:Texconv = Join-Path $script:fo4 "tools\elric\texconv.exe"
 $script:xEditPath = $scriptDir #set here as default for the file open dialog
 $script:xEditExecutable = $null
-$script:meshes = Join-Path $script:data "Meshes"
-$script:textures = Join-Path $script:data "Textures"
+$script:meshes = Join-Path $scriptDir "Temp\Meshes"
+$script:textures = Join-Path $scriptDir "Temp\Textures"
+$script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
+$script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
+$script:tempFaceGenTextures = Join-Path $script:tempfolder "Textures\Actors\Character\FaceCustomization"
 
-$script:meshesToDelete = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
-$script:texturesToDelete = Join-Path $script:data "Textures\Actors\Character\FaceCustomization"
+$script:FacegenMeshes = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
+$script:FacegenTextures = Join-Path $script:data "Textures\Actors\Character\FaceCustomization"
 
 $meshesarchive = Join-Path $script:data "FaceGenPatch - Main.ba2"
 $texturesarchive = Join-Path $script:data "FaceGenPatch - Textures.ba2"
@@ -168,10 +172,10 @@ try {
     $script = Split-Path -Path $fo4EditExe -Parent
 
     $pas = Join-Path -Path $script -ChildPath "Edit Scripts\FaceGen Generator.pas"
-    $facegenfilterscript = Join-Path -Path $scriptDir -ChildPath "Elric\FaceGen.cs"
+    #$facegenfilterscript = Join-Path -Path $scriptDir -ChildPath "Elric\FaceGen.cs"
 
     # Debug output to confirm the $pas path
-    #Write-Host "Path to .pas file: $pas"
+    Write-Host "Path to .pas file: $pas"
 
     # Check if the .pas file exists before trying to run the process
     if (!(Test-Path -Path $pas)) {
@@ -182,7 +186,7 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-autoexit -nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
     CheckForFacegenPatch
     }
     HandleSteamApiMismatch
@@ -190,33 +194,85 @@ try {
     if ($script:steamapiWasReplaced) {
         Copy-Item $steamapiTempPath -Destination $steamapiPath
     }
+
+    #Copy meshes to temp folder
+    Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
+    #Run Elric only on the meshes.
     Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
-    -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.FilterScript=`"$facegenfilterscript`" -ElricOptions.ConvertTarget=`"$script:data`" -ElricOptions.OutputDirectory=`"$script:data`" -ElricOptions.CloseWhenFinished=True" `
+    -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
     -Wait
 
     #Create meshes archive
-    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:data`" -c=`"$meshesarchive`" -f=General -includeFilters=[Mm]eshes\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Gg]en[Dd]ata\\[Ff]ace[Gg]eom\\" -Wait
+    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=[Mm]eshes\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Gg]en[Dd]ata\\[Ff]ace[Gg]eom\\" -Wait
 
+    Write-Host "Converting textures..."
+    $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_d.tga
+    foreach ($f in $files){
+        $texturehere = $f.FullName
+        Set-Location "$script:FacegenTextures"
+        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
+        $relativepath = $relativepath.ToString().Substring(2)
+        $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
+        if (!(Test-Path -Path $outputpath)){
+            New-Item -ItemType "directory" -Path $outputpath
+        }
+        Write-Host $texturehere
+        Start-Process -FilePath $script:Texconv -ArgumentList "-w 1024 -h 1024 -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
+    }
+    $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_msn.tga
+    foreach ($f in $files){
+        $texturehere = $f.FullName
+        Set-Location "$script:FacegenTextures"
+        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
+        $relativepath = $relativepath.ToString().Substring(2)
+        $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
+        if (!(Test-Path -Path $outputpath)){
+            New-Item -ItemType "directory" -Path $outputpath
+        }
+        Write-Host $texturehere
+        Start-Process -FilePath $script:Texconv -ArgumentList "-w 1024 -h 1024 -f BC1_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
+    }
+    $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_s.tga
+    foreach ($f in $files){
+        $texturehere = $f.FullName
+        Set-Location "$script:FacegenTextures"
+        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
+        $relativepath = $relativepath.ToString().Substring(2)
+        $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
+        if (!(Test-Path -Path $outputpath)){
+            New-Item -ItemType "directory" -Path $outputpath
+        }
+        Write-Host $texturehere
+        Start-Process -FilePath $script:Texconv -ArgumentList "-w 512 -h 512 -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
+    }
     #Create textures archive
-    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=[Tt]extures\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Cc]ustomization\\" -Wait
+    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:tempfolder`" -c=`"$texturesarchive`" -f=DDS -includeFilters=[Tt]extures\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Cc]ustomization\\" -Wait
 
     #Delete loose files
 
     $wshell = New-Object -ComObject Wscript.Shell
-    $decision = $wshell.Popup("Delete loose files at `"$script:meshesToDelete`" ?",0,"Alert",32+4)
+    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenMeshes`" ?",0,"Alert",32+4)
     if ($decision -eq 6) {
-        Remove-Item -LiteralPath "$script:meshesToDelete" -Recurse
-        Write-Host "`"$script:meshesToDelete`" was deleted."
+        Remove-Item -LiteralPath "$script:FacegenMeshes" -Recurse
+        Write-Host "`"$script:FacegenMeshes`" was deleted."
     } else {
-        Write-Host "`"$script:meshesToDelete`" was NOT deleted."
+        Write-Host "`"$script:FacegenMeshes`" was NOT deleted."
     }
 
-    $decision = $wshell.Popup("Delete loose files at `"$script:texturesToDelete`" ?",0,"Alert",32+4)
+    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenTextures`" ?",0,"Alert",32+4)
     if ($decision -eq 6) {
-        Remove-Item -LiteralPath "$script:texturesToDelete" -Recurse
-        Write-Host "`"$script:texturesToDelete`" was deleted."
+        Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse
+        Write-Host "`"$script:FacegenTextures`" was deleted."
     } else {
-        Write-Host "`"$script:texturesToDelete`" was NOT deleted."
+        Write-Host "`"$script:FacegenTextures`" was NOT deleted."
+    }
+
+    $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Alert",32+4)
+    if ($decision -eq 6) {
+        Remove-Item -LiteralPath "$script:tempfolder" -Recurse
+        Write-Host "`"$script:tempfolder`" was deleted."
+    } else {
+        Write-Host "`"$script:tempfolder`" was NOT deleted."
     }
 
 } catch {
