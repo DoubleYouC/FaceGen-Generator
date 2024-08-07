@@ -36,7 +36,7 @@ $script:Texconv = Join-Path $script:fo4 "tools\elric\texconv.exe"
 $script:xEditPath = $scriptDir #set here as default for the file open dialog
 $script:xEditExecutable = $null
 $script:meshes = Join-Path $scriptDir "Temp\Meshes"
-$script:textures = Join-Path $scriptDir "Temp\Textures"
+$script:textures = Join-Path $script:data -ChildPath "Textures"
 $script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
 $script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
 $script:tempFaceGenTextures = Join-Path $script:tempfolder "Textures\Actors\Character\FaceCustomization"
@@ -203,50 +203,56 @@ try {
     -Wait
 
     #Create meshes archive
-    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=[Mm]eshes\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Gg]en[Dd]ata\\[Ff]ace[Gg]eom\\" -Wait
+    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -Wait
 
-    Write-Host "Converting textures..."
-    $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_d.tga
-    foreach ($f in $files){
-        $texturehere = $f.FullName
-        Set-Location "$script:FacegenTextures"
-        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
-        $relativepath = $relativepath.ToString().Substring(2)
-        $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
-        if (!(Test-Path -Path $outputpath)){
-            New-Item -ItemType "directory" -Path $outputpath
-        }
-        Write-Host $texturehere
-        Start-Process -FilePath $script:Texconv -ArgumentList "-w 1024 -h 1024 -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
-    }
-    $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_msn.tga
-    foreach ($f in $files){
-        $texturehere = $f.FullName
-        Set-Location "$script:FacegenTextures"
-        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
-        $relativepath = $relativepath.ToString().Substring(2)
-        $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
-        if (!(Test-Path -Path $outputpath)){
-            New-Item -ItemType "directory" -Path $outputpath
-        }
-        Write-Host $texturehere
-        Start-Process -FilePath $script:Texconv -ArgumentList "-w 1024 -h 1024 -f BC1_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
-    }
-    $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_s.tga
-    foreach ($f in $files){
-        $texturehere = $f.FullName
-        Set-Location "$script:FacegenTextures"
-        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
-        $relativepath = $relativepath.ToString().Substring(2)
-        $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
-        if (!(Test-Path -Path $outputpath)){
-            New-Item -ItemType "directory" -Path $outputpath
-        }
-        Write-Host $texturehere
-        Start-Process -FilePath $script:Texconv -ArgumentList "-w 512 -h 512 -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
-    }
+    #####################################################################################################
+    # This Code was to convert textures, but perchik is now handling that inside the Creation Kit itself.
+    #####################################################################################################
+    # Write-Host "Converting textures..."
+    # $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_d.tga
+    # foreach ($f in $files){
+    #     $texturehere = $f.FullName
+    #     Set-Location "$script:FacegenTextures"
+    #     $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
+    #     $relativepath = $relativepath.ToString().Substring(2)
+    #     $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
+    #     if (!(Test-Path -Path $outputpath)){
+    #         New-Item -ItemType "directory" -Path $outputpath
+    #     }
+    #     Write-Host $texturehere
+    #     Start-Process -FilePath $script:Texconv -ArgumentList "-w 1024 -h 1024 -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
+    # }
+    # $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_msn.tga
+    # foreach ($f in $files){
+    #     $texturehere = $f.FullName
+    #     Set-Location "$script:FacegenTextures"
+    #     $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
+    #     $relativepath = $relativepath.ToString().Substring(2)
+    #     $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
+    #     if (!(Test-Path -Path $outputpath)){
+    #         New-Item -ItemType "directory" -Path $outputpath
+    #     }
+    #     Write-Host $texturehere
+    #     Start-Process -FilePath $script:Texconv -ArgumentList "-w 1024 -h 1024 -f BC1_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
+    # }
+    # $files = Get-ChildItem "$script:FacegenTextures" -Recurse -Filter *_s.tga
+    # foreach ($f in $files){
+    #     $texturehere = $f.FullName
+    #     Set-Location "$script:FacegenTextures"
+    #     $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
+    #     $relativepath = $relativepath.ToString().Substring(2)
+    #     $outputpath = Join-Path $script:tempFaceGenTextures $relativepath
+    #     if (!(Test-Path -Path $outputpath)){
+    #         New-Item -ItemType "directory" -Path $outputpath
+    #     }
+    #     Write-Host $texturehere
+    #     Start-Process -FilePath $script:Texconv -ArgumentList "-w 512 -h 512 -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$texturehere`"" -Wait -WindowStyle hidden
+    # }
+    #####################################################################################################
+    #####################################################################################################
+
     #Create textures archive
-    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:tempfolder`" -c=`"$texturesarchive`" -f=DDS -includeFilters=[Tt]extures\\[Aa]ctors\\[Cc]haracter\\[Ff]ace[Cc]ustomization\\" -Wait
+    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=(?i)textures\\actors\\character\\facecustomization\\" -Wait
 
     #Delete loose files
 
