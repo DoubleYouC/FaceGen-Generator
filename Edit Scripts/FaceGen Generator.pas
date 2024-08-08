@@ -684,6 +684,7 @@ begin
             AddRequiredElementMasters(r, iPluginFile, False, True);
             SortMasters(iPluginFile);
             npc := wbCopyElementToFile(r, iPluginFile, False, True);
+
             if not bQuickFaceFix then continue;
             SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
 
@@ -731,9 +732,8 @@ begin
             tlHdpt.Add(r);
             editorId := GetElementEditValues(r, 'EDID');
             newEditorId := StringReplace(editorid, ' ', '', [rfReplaceAll, rfIgnoreCase]);
-            newEditorId := StringReplace(newEditorId, '-', '_', [rfReplaceAll, rfIgnoreCase]);
-            newEditorId := StringReplace(newEditorId, '+', '_', [rfReplaceAll, rfIgnoreCase]);
-            newEditorId := StringReplace(newEditorId, '=', '_', [rfReplaceAll, rfIgnoreCase]);
+            newEditorId := StringReplace(newEditorId, '+', '', [rfReplaceAll, rfIgnoreCase]);
+            newEditorId := StringReplace(newEditorId, '=', '', [rfReplaceAll, rfIgnoreCase]);
             if SameText(editorId, newEditorId) then continue;
             AddRequiredElementMasters(r, iPluginFile, False, True);
             SortMasters(iPluginFile);
