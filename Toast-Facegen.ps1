@@ -47,10 +47,16 @@ $script:FacegenTextures = Join-Path $script:data "Textures\Actors\Character\Face
 $meshesarchive = Join-Path $script:data "FaceGenPatch - Main.ba2"
 $texturesarchive = Join-Path $script:data "FaceGenPatch - Textures.ba2"
 
+if ($args -contains "-zip") {
+    Write-Output "-zip has been passed. All files will be compressed into a .zip file."
+}
+
+if ($args -contains "-clean") {
+    # Automatically delete loose files without prompting
+    Write-Output "-clean has been passed. All loose files will be automatically deleted."
+}
+
 # Function to get or select the xEdit/FO4Edit path and executable
-
-
-
 function GetOrSelectxEditPath {
     # Check if the JSON file exists and read the stored path and executable
     if (Test-Path $jsonFilePath) {
@@ -164,6 +170,41 @@ if ($registryValue -and $registryValue."(Default)") {
     Write-Host "Could not find MO2 installation path."
 }
 
+if (-not ('WindowHelper' -as [Type])) {
+    Add-Type -TypeDefinition @"
+    using System;
+    using System.Runtime.InteropServices;
+    using System.Text;
+
+    public struct INPUT
+    {
+        public uint Type;
+        public KEYBDINPUT Data;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    public class WindowHelper {
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+    }
+"@
+}
+
 # Main script execution
 try {
     $fo4EditExe = GetOrSelectxEditPath
@@ -186,9 +227,34 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-IKnowWhatImDoing -autoload -autoexit -nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
-    CheckForFacegenPatch
+
+        #Write-Host "Argument is $scriptArgument"
+        $xEditProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-autoexit -nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
+        Start-Sleep -Seconds 5
+
+        if ($KeysToSend) {
+            Keypress -KeysToSend $KeysToSend
+        }
+
+        Start-Sleep -Seconds 15
+
+        while ($true) {
+            $title = New-Object System.Text.StringBuilder 256
+            [WindowHelper]::GetWindowText($xEditProcess.MainWindowHandle, $title, $title.Capacity) | Out-Null
+            $title = $title.ToString()
+
+            if ($title -match "FO4Script") {
+                Write-Output "Title change detected (indicates script is complete) Closing..."
+                Start-Sleep 1
+                $xEditProcess.CloseMainWindow()
+                $xEditProcess.WaitForExit()
+                break
+            }
+
+            Start-Sleep -Milliseconds 1000
+        }
     }
+    CheckForFacegenPatch
     HandleSteamApiMismatch
     Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -Wait
     if ($script:steamapiWasReplaced) {
@@ -254,35 +320,57 @@ try {
     #Create textures archive
     Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=(?i)textures\\actors\\character\\facecustomization\\" -Wait
 
-    #Delete loose files
+    # Check if the -clean argument was passed
+    if ($args -contains "-clean") {
+        # Automatically delete loose files without prompting
+        Write-Output "-clean has been passed. All loose files will be automatically deleted."
+        Remove-Item -LiteralPath "$script:FacegenMeshes" -Recurse -Force
+        Write-Host "`"$script:FacegenMeshes`" was deleted automatically by passing '-clean'"
 
-    $wshell = New-Object -ComObject Wscript.Shell
-    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenMeshes`" ?",0,"Delete loose facegen meshes?",0x4 + 0x20)
-    if ($decision -eq 6) {
-        Remove-Item -LiteralPath "$script:FacegenMeshes" -Recurse
-        Write-Host "`"$script:FacegenMeshes`" was deleted."
-    } else {
-        Write-Host "`"$script:FacegenMeshes`" was NOT deleted."
-    }
+        Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse -Force
+        Write-Host "`"$script:FacegenTextures`" was deleted automatically by passing '-clean'"
 
-    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenTextures`" ?",0,"Delete loose facegen textures?",0x4 + 0x20)
-    if ($decision -eq 6) {
-        Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse
-        Write-Host "`"$script:FacegenTextures`" was deleted."
+        Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
+        Write-Host "`"$script:tempfolder`" was deleted automatically by passing '-clean'"
     } else {
-        Write-Host "`"$script:FacegenTextures`" was NOT deleted."
-    }
+        # Existing code for user confirmation
+        $wshell = New-Object -ComObject Wscript.Shell
+        $decision = $wshell.Popup("Delete loose files at `"$script:FacegenMeshes`" ?",0,"Delete loose facegen meshes?",0x4 + 0x20)
+        if ($decision -eq 6) {
+            Remove-Item -LiteralPath "$script:FacegenMeshes" -Recurse
+            Write-Host "`"$script:FacegenMeshes`" was deleted."
+        } else {
+            Write-Host "`"$script:FacegenMeshes`" was NOT deleted."
+        }
 
-    $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
-    if ($decision -eq 6) {
-        Remove-Item -LiteralPath "$script:tempfolder" -Recurse
-        Write-Host "`"$script:tempfolder`" was deleted."
-    } else {
-        Write-Host "`"$script:tempfolder`" was NOT deleted."
+        $decision = $wshell.Popup("Delete loose files at `"$script:FacegenTextures`" ?",0,"Delete loose facegen textures?",0x4 + 0x20)
+        if ($decision -eq 6) {
+            Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse
+            Write-Host "`"$script:FacegenTextures`" was deleted."
+        } else {
+            Write-Host "`"$script:FacegenTextures`" was NOT deleted."
+        }
+
+        $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
+        if ($decision -eq 6) {
+            Remove-Item -LiteralPath "$script:tempfolder" -Recurse
+            Write-Host "`"$script:tempfolder`" was deleted."
+        } else {
+            Write-Host "`"$script:tempfolder`" was NOT deleted."
+        }
     }
 
     #Quick Auto Clean
     Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -Wait
+
+    # Check if the -zip argument was passed
+    if ($args -contains "-zip") {
+        $date = Get-Date -Format "dd-MM-yyyy"
+        Write-Output "-zip has been passed. All files will be compressed into a .zip file."
+        # Zip the generated files
+        Compress-Archive -Path "$script:facegenpatch", "$script:meshesarchive", "$script:texturesarchive" -DestinationPath "$script:data\Facegen-$date.zip"
+        Write-Host "All generated files were compressed into GeneratedFiles.zip."
+    }
 
 } catch {
     Write-Host "`nAn unexpected error occurred.`n"
