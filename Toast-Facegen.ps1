@@ -186,7 +186,7 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-autoexit -nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-IKnowWhatImDoing -autoload -autoexit -nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -Wait
     CheckForFacegenPatch
     }
     HandleSteamApiMismatch
@@ -257,7 +257,7 @@ try {
     #Delete loose files
 
     $wshell = New-Object -ComObject Wscript.Shell
-    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenMeshes`" ?",0,"Alert",32+4)
+    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenMeshes`" ?",0,"Delete loose facegen meshes?",0x4 + 0x20)
     if ($decision -eq 6) {
         Remove-Item -LiteralPath "$script:FacegenMeshes" -Recurse
         Write-Host "`"$script:FacegenMeshes`" was deleted."
@@ -265,7 +265,7 @@ try {
         Write-Host "`"$script:FacegenMeshes`" was NOT deleted."
     }
 
-    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenTextures`" ?",0,"Alert",32+4)
+    $decision = $wshell.Popup("Delete loose files at `"$script:FacegenTextures`" ?",0,"Delete loose facegen textures?",0x4 + 0x20)
     if ($decision -eq 6) {
         Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse
         Write-Host "`"$script:FacegenTextures`" was deleted."
@@ -273,13 +273,16 @@ try {
         Write-Host "`"$script:FacegenTextures`" was NOT deleted."
     }
 
-    $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Alert",32+4)
+    $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
     if ($decision -eq 6) {
         Remove-Item -LiteralPath "$script:tempfolder" -Recurse
         Write-Host "`"$script:tempfolder`" was deleted."
     } else {
         Write-Host "`"$script:tempfolder`" was NOT deleted."
     }
+
+    #Quick Auto Clean
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -Wait
 
 } catch {
     Write-Host "`nAn unexpected error occurred.`n"
