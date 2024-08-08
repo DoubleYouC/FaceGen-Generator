@@ -617,10 +617,12 @@ var
     r, e, eTints, eTintGroup, eOptions, eOption, eTextures: IInterface;
     //r, npc, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
     bTint: Boolean;
+    recordId: string;
 begin
     //Race
     for i:=0 to Pred(tlRace) do begin
-        r := ObjectToElement(tlEnableParents[i]);
+        r := ObjectToElement(tlRace[i]);
+        recordId := GetFileName(r) + #9 + ShortName(r);
 
         //Male Head Parts (sorted)
         //  Head Part
