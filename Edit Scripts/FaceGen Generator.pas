@@ -9,11 +9,10 @@ unit FaceGen;
 
 var
     iPluginFile: IInterface;
-    bBatchMode, bQuickFaceFix, bOnlyMissing, bSteamAppIDTxtExists: Boolean;
-    sResolution, sDiffuseFormat, sDiffuseRes, sNormalFormat, sNormalRes, sSpecularFormat, sSpecularRes, sCKFixesINI, sElricReadSettings, sElricModifiedSettings, sVEFSDir, elricSettings, sPicVefs: string;
+    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bSteamAppIDTxtExists: Boolean;
+    sCKFixesINI, sVEFSDir, sPicVefs: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextureFormats, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextureFormats: TStringList;
-    cbDiffuseSize, cbDiffuseFormat, cbNormalSize, cbNormalFormat, cbSpecularSize, cbSpecularFormat: TComboBox;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
 
 const
@@ -34,8 +33,6 @@ begin
 
     bBatchMode := CheckLaunchArguments;
 
-    ReadElricSettings;
-
     if not bBatchMode then begin
 
         if not MainMenuForm then begin
@@ -53,11 +50,10 @@ begin
     end;
 
     CollectRecords;
+    ProcessRecords;
     CollectAssets;
 
     TextureInfo;
-
-    SetTexturesOptions;
 
     Result := 0;
 end;
@@ -77,8 +73,6 @@ begin
     slMaterials.Free;
     slAssets.Free;
     slPluginFiles.Free;
-    slTextureFormats.Free;
-    slDiffuseTextureFormats.Free;
     Result := 0;
 end;
 
@@ -106,15 +100,6 @@ begin
     slAssets.Duplicates := dupIgnore;
 
     slPluginFiles := TStringList.Create;
-
-    slTextureFormats := TStringList.Create;
-    slTextureFormats.Add('BC1');
-    slTextureFormats.Add('BC5');
-    slTextureFormats.Add('BC7');
-
-    slDiffuseTextureFormats := TStringList.Create;
-    slDiffuseTextureFormats.Add('Auto');
-    slDiffuseTextureFormats.Add('BC7');
 end;
 
 // ----------------------------------------------------
@@ -130,21 +115,15 @@ var
     btnStart, btnCancel: TButton;
     pnl: TPanel;
     gbOptions: TGroupBox;
-    slResolutions: TStringList;
     uiScale: integer;
     picVefs: TPicture;
     fImage: TImage;
 begin
     frm := TForm.Create(nil);
     try
-        slResolutions := TStringList.Create;
-        slResolutions.Add('512');
-        slResolutions.Add('1024');
-        slResolutions.Add('2048');
-
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
         frm.Width := 600;
-        frm.Height := 524;
+        frm.Height := 400;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
@@ -169,7 +148,7 @@ begin
         gbOptions.Width := frm.Width - 24;
         gbOptions.Left := 6;
         gbOptions.Caption := 'Options';
-        gbOptions.Height := 194;
+        gbOptions.Height := 114;
 
         rbFaceGenPreset := TRadioButton.Create(gbOptions);
         rbFaceGenPreset.Name := 'rbFaceGenPreset';
@@ -183,7 +162,6 @@ begin
              + #13#10 + 'and sets the "Is CharGen Face Preset" flag.'
              + #13#10 + 'The game will generate the face, which may cause stutter.';
         rbFaceGenPreset.ShowHint := True;
-        rbFaceGenPreset.OnClick := RadioClick;
 
         rbOnlyMissing := TRadioButton.Create(gbOptions);
         rbOnlyMissing.Name := 'rbOnlyMissing';
@@ -197,7 +175,6 @@ begin
              + #13#10 + 'This will be used to generate FaceGen via the Creation Kit.';
         rbOnlyMissing.ShowHint := True;
         rbOnlyMissing.Checked := True;
-        rbOnlyMissing.OnClick := RadioClick;
 
         rbAll := TRadioButton.Create(gbOptions);
         rbAll.Name := 'rbAll';
@@ -210,86 +187,12 @@ begin
              + #13#10 + 'This will be used to generate FaceGen via the Creation Kit.';
         rbAll.Caption := 'Generate All Faces';
         rbAll.ShowHint := True;
-        rbAll.OnClick := RadioClick;
-
-        cbDiffuseSize := TComboBox.Create(gbOptions);
-        cbDiffuseSize.Parent := gbOptions;
-        cbDiffuseSize.Left := 90;
-        cbDiffuseSize.Top := 60;
-        cbDiffuseSize.Width := 50;
-        cbDiffuseSize.Style := csDropDownList;
-        cbDiffuseSize.Items.Assign(slResolutions);
-        cbDiffuseSize.ItemIndex := slResolutions.IndexOf(sDiffuseRes);
-        cbDiffuseSize.Hint := 'Sets the diffuse texture resolution.';
-        cbDiffuseSize.ShowHint := True;
-        CreateLabel(gbOptions, 20, cbDiffuseSize.Top + 3, 'Diffuse Size');
-
-        cbDiffuseFormat := TComboBox.Create(gbOptions);
-        cbDiffuseFormat.Parent := gbOptions;
-        cbDiffuseFormat.Left := cbDiffuseSize.Left + cbDiffuseSize.Width + 52;
-        cbDiffuseFormat.Top := cbDiffuseSize.Top;
-        cbDiffuseFormat.Width := 50;
-        cbDiffuseFormat.Style := csDropDownList;
-        cbDiffuseFormat.Items.Assign(slDiffuseTextureFormats);
-        cbDiffuseFormat.ItemIndex := slDiffuseTextureFormats.IndexOf(sDiffuseFormat);
-        cbDiffuseFormat.Hint := 'Sets the diffuse texture format.'
-            + #13#10 + '(Auto is a mix of BC1 and BC3)';
-        cbDiffuseFormat.ShowHint := True;
-        CreateLabel(gbOptions, cbDiffuseSize.Left + cbDiffuseSize.Width + 12, cbDiffuseFormat.Top + 3, 'Format');
-
-        cbNormalSize := TComboBox.Create(gbOptions);
-        cbNormalSize.Parent := gbOptions;
-        cbNormalSize.Left := 90;
-        cbNormalSize.Top := cbDiffuseSize.Top + 30;
-        cbNormalSize.Width := 50;
-        cbNormalSize.Style := csDropDownList;
-        cbNormalSize.Items.Assign(slResolutions);
-        cbNormalSize.ItemIndex := slResolutions.IndexOf(sNormalRes);
-        cbNormalSize.Hint := 'Sets the normal texture resolution.';
-        cbNormalSize.ShowHint := True;
-        CreateLabel(gbOptions, 20, cbNormalSize.Top + 3, 'Normal Size');
-
-        cbNormalFormat := TComboBox.Create(gbOptions);
-        cbNormalFormat.Parent := gbOptions;
-        cbNormalFormat.Left := cbNormalSize.Left + cbNormalSize.Width + 52;
-        cbNormalFormat.Top := cbNormalSize.Top;
-        cbNormalFormat.Width := 50;
-        cbNormalFormat.Style := csDropDownList;
-        cbNormalFormat.Items.Assign(slTextureFormats);
-        cbNormalFormat.ItemIndex := slTextureFormats.IndexOf(sNormalFormat);
-        cbNormalFormat.Hint := 'Sets the normal texture format.';
-        cbNormalFormat.ShowHint := True;
-        CreateLabel(gbOptions, cbNormalSize.Left + cbNormalSize.Width + 12, cbNormalFormat.Top + 3, 'Format');
-
-        cbSpecularSize := TComboBox.Create(gbOptions);
-        cbSpecularSize.Parent := gbOptions;
-        cbSpecularSize.Left := 90;
-        cbSpecularSize.Top := cbDiffuseSize.Top + 60;
-        cbSpecularSize.Width := 50;
-        cbSpecularSize.Style := csDropDownList;
-        cbSpecularSize.Items.Assign(slResolutions);
-        cbSpecularSize.ItemIndex := slResolutions.IndexOf(sSpecularRes);
-        cbSpecularSize.Hint := 'Sets the specular texture resolution.';
-        cbSpecularSize.ShowHint := True;
-        CreateLabel(gbOptions, 20, cbSpecularSize.Top + 3, 'Specular Size');
-
-        cbSpecularFormat := TComboBox.Create(gbOptions);
-        cbSpecularFormat.Parent := gbOptions;
-        cbSpecularFormat.Left := cbSpecularSize.Left + cbSpecularSize.Width + 52;
-        cbSpecularFormat.Top := cbSpecularSize.Top;
-        cbSpecularFormat.Width := 50;
-        cbSpecularFormat.Style := csDropDownList;
-        cbSpecularFormat.Items.Assign(slTextureFormats);
-        cbSpecularFormat.ItemIndex := slTextureFormats.IndexOf(sSpecularFormat);
-        cbSpecularFormat.Hint := 'Sets the specular texture format.';
-        cbSpecularFormat.ShowHint := True;
-        CreateLabel(gbOptions, cbSpecularSize.Left + cbSpecularSize.Width + 12, cbSpecularFormat.Top + 3, 'Format');
 
         btnStart := TButton.Create(gbOptions);
         btnStart.Parent := gbOptions;
         btnStart.Caption := 'Start';
         btnStart.ModalResult := mrOk;
-        btnStart.Top := 162;
+        btnStart.Top := rbFaceGenPreset.Top + 50;
 
         btnCancel := TButton.Create(gbOptions);
         btnCancel.Parent := gbOptions;
@@ -318,37 +221,17 @@ begin
         end
         else Result := True;
 
-        sDiffuseRes := slResolutions[cbDiffuseSize.ItemIndex];
-        sDiffuseFormat := slDiffuseTextureFormats[cbDiffuseFormat.ItemIndex];
-        sNormalRes := slResolutions[cbNormalSize.ItemIndex];
-        sNormalFormat := slTextureFormats[cbNormalFormat.ItemIndex];
-        sSpecularRes := slResolutions[cbSpecularSize.ItemIndex];
-        sSpecularFormat := slTextureFormats[cbSpecularFormat.ItemIndex];
         bOnlyMissing := rbOnlyMissing.Checked;
         bQuickFaceFix := rbFaceGenPreset.Checked;
+        bAll := rbAll.Checked;
 
-        if bOnlyMissing then AddMessage('Mode: Only Missing') else if bQuickFaceFix then AddMessage('Mode: Quick Face Fix') else AddMessage('Mode: All');
-        AddMessage('Diffuse size: ' + sDiffuseRes);
-        AddMessage('Diffuse format: ' + sDiffuseFormat);
-        AddMessage('Normal size: ' + sNormalRes);
-        AddMessage('Normal format: ' + sNormalFormat);
-        AddMessage('Specular size: ' + sSpecularRes);
-        AddMessage('Specular format: ' + sSpecularFormat);
+        if bOnlyMissing then AddMessage('Mode: Only Missing')
+        else if bQuickFaceFix then AddMessage('Mode: Quick Face Fix')
+        else if bAll then AddMessage('Mode: All');
 
     finally
         frm.Free;
-        slResolutions.Free;
     end;
-end;
-
-procedure RadioClick(Sender: TObject);
-begin
-    cbDiffuseSize.Enabled := not rbFaceGenPreset.Checked;
-    cbDiffuseFormat.Enabled := not rbFaceGenPreset.Checked;
-    cbNormalFormat.Enabled := not rbFaceGenPreset.Checked;
-    cbNormalSize.Enabled := not rbFaceGenPreset.Checked;
-    cbSpecularFormat.Enabled := not rbFaceGenPreset.Checked;
-    cbSpecularSize.Enabled := not rbFaceGenPreset.Checked;
 end;
 
 procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -387,8 +270,6 @@ function RequirementsCheck: Boolean;
 {
     Check for required files.
 }
-var
-    iCKFixesInstalled, iCKPlatformExtendedInstalled: integer;
 begin
     //Check for Creation Kit
     if not FileExists(GamePath() + 'CreationKit.exe') then begin
@@ -397,19 +278,11 @@ begin
         Exit;
     end;
 
-    //Check for Creation Kit Fixes
-    iCKFixesInstalled := 0;
-    iCKPlatformExtendedInstalled := 0;
-    if FileExists(GamePath() + 'fallout4_test.ini') then begin
-        iCKFixesInstalled := 1;
-        sCKFixesINI := GamePath() + 'fallout4_test.ini';
-    end
     //Check for Creation Kit Platform Extended
-    else if FileExists(GamePath() + 'CreationKitPlatformExtended.ini') then begin
-        iCKPlatformExtendedInstalled := 1;
+    if FileExists(GamePath() + 'CreationKitPlatformExtended.ini') then begin
         sCKFixesINI := GamePath() + 'CreationKitPlatformExtended.ini';
-    end;
-    if iCKFixesInstalled + iCKPlatformExtendedInstalled = 0 then begin
+    end
+    else begin
         MessageDlg('Please install Creation Kit Platform Extended or Creation Kit Fixes by perchik71 before continuing.', mtError, [mbOk], 0);
         Result := False;
         Exit;
@@ -419,54 +292,6 @@ begin
     if FileExists(GamePath() + 'steam_appid.txt') then bSteamAppIDTxtExists := True;
 
     Result := True;
-end;
-
-procedure SetTexturesOptions;
-{
-    Sets the texture settings.
-}
-var
-    TFile: TFile;
-begin
-    sElricModifiedSettings := sElricReadSettings;
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2281, 3, sNormalFormat);
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2692, 3, sSpecularFormat);
-
-    if SameText(sDiffuseFormat, 'Auto') then sDiffuseFormat := '//'
-    else sDiffuseFormat := 'aT';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1773, 2, sDiffuseFormat);
-
-    sDiffuseRes := sDiffuseRes + '";//diff';
-    if Length(sDiffuseRes) <> 12 then sDiffuseRes := sDiffuseRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 1920, 12, sDiffuseRes);
-
-    sNormalRes := sNormalRes + '";//norm';
-    if Length(sNormalRes) <> 12 then sNormalRes := sNormalRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2336, 12, sNormalRes);
-
-    sSpecularRes := sSpecularRes + '";//spec';
-    if Length(sSpecularRes) <> 12 then sSpecularRes := sSpecularRes + 'x';
-    sElricModifiedSettings := StuffString(sElricModifiedSettings, 2747, 12, sSpecularRes);
-
-    //AddMessage(sElricModifiedSettings);
-    TFile.WriteAllText(elricSettings, sElricModifiedSettings);
-end;
-
-procedure ReadElricSettings;
-{
-    Initial reading of the Elric Settings file.
-}
-var
-    TFile: TFile;
-    idx: integer;
-begin
-    sElricReadSettings := TFile.ReadAllText(elricSettings);
-    if SameText(MidStr(sElricReadSettings, 1773, 2), '//') then sDiffuseFormat := 'Auto' else sDiffuseFormat := 'BC7';
-    sNormalFormat := MidStr(sElricReadSettings, 2281, 3);
-    sSpecularFormat := MidStr(sElricReadSettings, 2692, 3);
-    sDiffuseRes := StringReplace(MidStr(sElricReadSettings, 1920, 4), '"', '', rfReplaceAll);
-    sNormalRes := StringReplace(MidStr(sElricReadSettings, 2336, 4), '"', '', rfReplaceAll);
-    sSpecularRes := StringReplace(MidStr(sElricReadSettings, 2747, 4), '"', '', rfReplaceAll);
 end;
 
 function CheckLaunchArguments: Boolean;
@@ -486,8 +311,25 @@ begin
             if Pos('-vefsdir:', launchOption) > 0 then begin
                 sVEFSDir := TrimRightChars(launchOption, 9);
                 AddMessage('VEFS Dir: ' + sVEFSDir);
-                elricSettings := sVEFSDir + '\Elric\FaceGen.cs';
                 sPicVefs := sVEFSDir + '\Images\vefs.png';
+                continue;
+            end;
+            if Pos('-bOnlyMissing:', launchOption) > 0 then begin
+                bAll := False;
+                bOnlyMissing := True;
+                bQuickFaceFix := False;
+                continue;
+            end;
+            if Pos('-bQuickFaceFix:', launchOption) > 0 then begin
+                bAll := False;
+                bOnlyMissing := False;
+                bQuickFaceFix := True;
+                continue;
+            end;
+            if Pos('-bAll:', launchOption) > 0 then begin
+                bAll := True;
+                bOnlyMissing := False;
+                bQuickFaceFix := False;
                 continue;
             end;
         end;
@@ -623,39 +465,6 @@ begin
             idx := slRace.IndexOf(recordId);
             if idx > -1 then continue;
             if GetElementEditValues(r, 'DATA\Flags\FaceGen Head') <> '1' then continue;
-
-            if ElementExists(r, 'Male Tint Layers') then begin
-                eMaleTints := ElementByPath(r, 'Male Tint Layers');
-                for k := 0 to Pred(ElementCount(eMaleTints)) do begin
-                    eTintGroup := ElementByIndex(eMaleTints, k);
-                    eOptions := ElementByName(eTintGroup, 'Options');
-                    for l := 0 to Pred(ElementCount(eOptions)) do begin
-                        eOption := ElementByIndex(eOptions, l);
-                        eTextures := ElementByName(eOption, 'Textures');
-                        for m := 0 to Pred(ElementCount(eTextures)) do begin
-                            e := ElementByIndex(eTextures, m);
-                            AddTexture(recordId, GetEditValue(e));
-                        end;
-                    end;
-                end;
-            end;
-
-            if ElementExists(r, 'Female Tint Layers') then begin
-                eMaleTints := ElementByPath(r, 'Male Tint Layers');
-                for k := 0 to Pred(ElementCount(eMaleTints)) do begin
-                    eTintGroup := ElementByIndex(eMaleTints, k);
-                    eOptions := ElementByName(eTintGroup, 'Options');
-                    for l := 0 to Pred(ElementCount(eOptions)) do begin
-                        eOption := ElementByIndex(eOptions, l);
-                        eTextures := ElementByName(eOption, 'Textures');
-                        for m := 0 to Pred(ElementCount(eTextures)) do begin
-                            e := ElementByIndex(eTextures, m);
-                            AddTexture(recordId, GetEditValue(e));
-                        end;
-                    end;
-                end;
-            end;
-
             slRace.Add(recordId);
             tlRace.Add(r);
             //AddMessage(recordID);
@@ -674,6 +483,7 @@ begin
             if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
             if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
+
             if bOnlyMissing or bQuickFaceFix then begin
                 masterFile := GetFileName(MasterOrSelf(r));
                 relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
@@ -796,6 +606,95 @@ begin
     slNpc.Free;
     slHdpt.Free;
     slTxst.Free;
+end;
+
+procedure ProcessRecords;
+{
+    Process records
+}
+var
+    i, k, l, m, textureCount: integer;
+    r, e, eTints, eTintGroup, eOptions, eOption, eTextures: IInterface;
+    //r, npc, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
+    bTint: Boolean;
+begin
+    //Race
+    for i:=0 to Pred(tlRace) do begin
+        r := ObjectToElement(tlEnableParents[i]);
+
+        //Male Head Parts (sorted)
+        //  Head Part
+        //    HEAD > Links To HDPT record
+
+        //Male Race Presets
+        //  RPRM - Preset NPC#0 > Links to NPC_ preset
+
+        //Male Face Details (sorted)
+        //  FTSM - Texture Set > Links to TXST facegen head textures
+
+        //DFTM - Male Default Face Texture > Links to TXST facegen head default texture
+
+        //Male Tints
+        if ElementExists(r, 'Male Tint Layers') then begin
+            eTints := ElementByPath(r, 'Male Tint Layers');
+            for k := 0 to Pred(ElementCount(eTints)) do begin
+                //Group # 0
+                eTintGroup := ElementByIndex(eTints, k);
+                //  Options
+                eOptions := ElementByName(eTintGroup, 'Options');
+                for l := 0 to Pred(ElementCount(eOptions)) do begin
+                    //Option #0
+                    eOption := ElementByIndex(eOptions, l);
+                    //  Textures
+                    eTextures := ElementByName(eOption, 'Textures');
+                    textureCount := ElementCount(eTextures);
+                    if textureCount = 1 then bTint := 1 else bTint := 0;
+                    for m := 0 to Pred(textureCount) do begin
+                        //TIET - Texture #0
+                        e := ElementByIndex(eTextures, m);
+                        AddTexture(recordId, GetEditValue(e));
+                    end;
+                end;
+            end;
+        end;
+
+        //Female Head Parts (sorted)
+        //  Head Part
+        //    HEAD > Links To HDPT record
+
+        //Female Race Presets
+        //  RPRF - Preset NPC#0 > Links to NPC_ preset
+
+        //Female Face Details (sorted)
+        //  FTSF - Texture Set > Links to TXST facegen head textures
+
+        //DFTF - Female Default Face Texture > Links to TXST facegen head default texture
+
+        //Female Tints
+        if ElementExists(r, 'Female Tint Layers') then begin
+            eTints := ElementByPath(r, 'Female Tint Layers');
+            for k := 0 to Pred(ElementCount(eTints)) do begin
+                //Group # 0
+                eTintGroup := ElementByIndex(eTints, k);
+                //  Options
+                eOptions := ElementByName(eTintGroup, 'Options');
+                for l := 0 to Pred(ElementCount(eOptions)) do begin
+                    //Option #0
+                    eOption := ElementByIndex(eOptions, l);
+                    //  Textures
+                    eTextures := ElementByName(eOption, 'Textures');
+                    textureCount := ElementCount(eTextures);
+                    if textureCount = 1 then bTint := 1 else bTint := 0;
+                    for m := 0 to Pred(textureCount) do begin
+                        //TIET - Texture #0
+                        e := ElementByIndex(eTextures, m);
+                        AddTexture(recordId, GetEditValue(e));
+                    end;
+                end;
+            end;
+        end;
+
+    end;
 end;
 
 procedure TextureInfo;
