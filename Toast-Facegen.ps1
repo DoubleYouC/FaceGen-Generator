@@ -57,15 +57,17 @@ if ($args -contains "-clean") {
     Write-Output "-clean has been passed. All loose files will be automatically deleted."
 }
 
+if (Test-Path $jsonFilePath) {
+    $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
+}
+
 # Function to get or select the xEdit/FO4Edit path and executable
 function GetOrSelectxEditPath {
     # Check if the JSON file exists and read the stored path and executable
     if (Test-Path $jsonFilePath) {
-        $locationData = Get-Content -Path $jsonFilePath | ConvertFrom-Json
-
         # Make sure we are getting the correct properties as strings
-        $script:xEditPath = [string]$locationData.xEditDirectory
-        $script:xEditExecutable = [string]$locationData.xEditExecutable
+        $script:xEditPath = [string]$script:configfile.xEditDirectory
+        $script:xEditExecutable = [string]$script:configfile.xEditExecutable
         Write-Host "Found stored path to xEdit/FO4Edit: $script:xEditPath"
         Write-Host "Found stored executable: $script:xEditExecutable"
         $fullPath = Join-Path -Path $script:xEditPath -ChildPath $script:xEditExecutable
@@ -257,6 +259,15 @@ try {
         Remove-Item -LiteralPath $script:facegenpatch
         Write-Host "`"$script:facegenpatch`" was deleted."
         LaunchXEdit
+    }
+
+    #We must reread the config file to refresh its contents.
+    $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
+    $FaceCount = [string]$script:configfile.Face_Count
+    if ($FaceCount -eq "0") {
+        Write-Host "No faces require FaceGen Generation. VEFS will now close."
+        Start-Sleep -Seconds 5
+        Exit
     }
 
     HandleSteamApiMismatch
