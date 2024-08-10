@@ -12,8 +12,9 @@ var
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bSteamAppIDTxtExists: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles: TStringList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
+    joFaces: TJsonObject;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -53,8 +54,6 @@ begin
     ProcessRecords;
     CollectAssets;
 
-    TextureInfo;
-
     Result := 0;
 end;
 
@@ -65,7 +64,6 @@ function Finalize: integer;
 begin
     tlRace.Free;
     tlNpc.Free;
-    tlTxst.Free;
     tlHdpt.Free;
 
     slModels.Free;
@@ -73,6 +71,13 @@ begin
     slMaterials.Free;
     slAssets.Free;
     slPluginFiles.Free;
+
+    slDiffuseTextures.Free;
+    slNormalTextures.Free;
+    slSpecularTextures.Free;
+    slTintTextures.Free;
+
+    joFaces.SaveToFile(sVEFSDir + '\Faces.json', False, TEncoding.UTF8, True);
     Result := 0;
 end;
 
@@ -80,7 +85,6 @@ procedure CreateObjects;
 begin
     tlRace := TList.Create;
     tlNpc := TList.Create;
-    tlTxst := TList.Create;
     tlHdpt := TList.Create;
 
     slModels := TStringList.Create;
@@ -91,6 +95,22 @@ begin
     slTextures.Sorted := True;
     slTextures.Duplicates := dupIgnore;
 
+    slDiffuseTextures := TStringList.Create;
+    slDiffuseTextures.Sorted := True;
+    slDiffuseTextures.Duplicates := dupIgnore;
+
+    slNormalTextures := TStringList.Create;
+    slNormalTextures.Sorted := True;
+    slNormalTextures.Duplicates := dupIgnore;
+
+    slSpecularTextures := TStringList.Create;
+    slSpecularTextures.Sorted := True;
+    slSpecularTextures.Duplicates := dupIgnore;
+
+    slTintTextures := TStringList.Create;
+    slTintTextures.Sorted := True;
+    slTintTextures.Duplicates := dupIgnore;
+
     slMaterials := TStringList.Create;
     slMaterials.Sorted := True;
     slMaterials.Duplicates := dupIgnore;
@@ -100,6 +120,8 @@ begin
     slAssets.Duplicates := dupIgnore;
 
     slPluginFiles := TStringList.Create;
+
+    joFaces := TJsonObject.Create;
 end;
 
 // ----------------------------------------------------
@@ -415,17 +437,21 @@ procedure CollectRecords;
 }
 var
     i, j, k, l, m, idx: integer;
-    editorId, filename, recordId, masterFile, material, model, newEditorId, relativeFormid, texture, tri: string;
-    e, r, npc, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
+    editorId, filename, recordId, masterFile, material, model, newEditorId, relativeFormid, texture, tri, sex: string;
+    e, r, npc, race, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
     g: IwbGroupRecord;
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
-    slRace, slNpc, slTxst, slHdpt: TStringList;
+    slRace, slNpc, slTxst, slHdpt, slRaceSex: TStringList;
 begin
     slRace := TStringList.Create;
     slNpc := TStringList.Create;
     slHdpt := TStringList.Create;
     slTxst := TStringList.Create;
+
+    slRaceSex := TStringList.Create;
+    slRaceSex.Sorted := True;
+    slRaceSex.Duplicates := dupIgnore;
 
     for i := 0 to Pred(FileCount) do begin
         f := FileByIndex(i);
@@ -477,26 +503,34 @@ begin
             recordId := GetFileName(r) + #9 + ShortName(r);
             idx := slNpc.IndexOf(recordId);
             if idx > -1 then continue;
-            idx := tlRace.IndexOf(LinksTo(ElementByPath(r, 'RNAM')));
+            race := LinksTo(ElementByPath(r, 'RNAM'));
+            idx := tlRace.IndexOf(race);
             if idx = -1 then continue;
             if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
             if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
-            if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
+            //if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
 
-            if bOnlyMissing or bQuickFaceFix then begin
-                masterFile := GetFileName(MasterOrSelf(r));
-                relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
-                if FaceGenExists(relativeFormid, masterFile) then continue;
-            end;
+            // if bOnlyMissing or bQuickFaceFix then begin
+            //     masterFile := GetFileName(MasterOrSelf(r));
+            //     relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
+            //     if FaceGenExists(relativeFormid, masterFile) then continue;
+            // end;
             slNpc.Add(recordId);
             tlNpc.Add(r);
-            AddRequiredElementMasters(r, iPluginFile, False, True);
-            SortMasters(iPluginFile);
-            npc := wbCopyElementToFile(r, iPluginFile, False, True);
+            sex := 'Male';
+            if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
+            slRaceSex.Add(ShortName(race) + #9 + sex + #9 + ShortName(r));
+            joFaces.O[ShortName(race)].A['sex'].Add(sex);
+            //joRules.O[key].S['level0'] := lod4;
 
-            if not bQuickFaceFix then continue;
-            SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
+
+            // AddRequiredElementMasters(r, iPluginFile, False, True);
+            // SortMasters(iPluginFile);
+            // npc := wbCopyElementToFile(r, iPluginFile, False, True);
+
+            // if not bQuickFaceFix then continue;
+            // SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
 
 
             //AddMessage(recordID);
@@ -515,18 +549,18 @@ begin
                 slAssets.Add(model);
             end;
             if ElementExists(r, 'Model\MODT') then begin
-                eTextures := ElementByPath(r, 'Model\MODT\Textures');
-                for k := 0 to Pred(ElementCount(eTextures)) do begin
-                    e := ElementByIndex(eTextures, k);
-                    AddTexture(recordId, GetSummary(e));
-                end;
+                // eTextures := ElementByPath(r, 'Model\MODT\Textures');
+                // for k := 0 to Pred(ElementCount(eTextures)) do begin
+                //     e := ElementByIndex(eTextures, k);
+                //     AddTexture(recordId, GetSummary(e));
+                // end;
                 eMaterials := ElementByPath(r, 'Model\MODT\Materials');
                 for k := 0 to Pred(ElementCount(eMaterials)) do begin
                     e := ElementByIndex(eMaterials, k);
                     material := wbNormalizeResourceName(GetSummary(e), resMaterial);
                     slMaterials.Add(material);
                     slAssets.Add(material);
-                    AddMaterialTextures(material);
+                    //AddMaterialTextures(material);
                 end;
             end;
             if ElementExists(r, 'Parts') then begin
@@ -554,7 +588,7 @@ begin
         end;
 
         //TXST
-        g := GroupBySignature(f, 'TXST');
+{         g := GroupBySignature(f, 'TXST');
         for j := 0 to Pred(ElementCount(g)) do begin
             r := WinningOverride(ElementByIndex(g, j));
             recordId := GetFileName(r) + #9 + ShortName(r);
@@ -567,21 +601,6 @@ begin
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX01') then begin
                 AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX01'));
-            end;
-            if ElementExists(r, 'Textures (RGB/A)\TX03') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX03'));
-            end;
-            if ElementExists(r, 'Textures (RGB/A)\TX04') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX04'));
-            end;
-            if ElementExists(r, 'Textures (RGB/A)\TX05') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX05'));
-            end;
-            if ElementExists(r, 'Textures (RGB/A)\TX02') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX02'));
-            end;
-            if ElementExists(r, 'Textures (RGB/A)\TX06') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX06'));
             end;
             if ElementExists(r, 'Textures (RGB/A)\TX07') then begin
                 AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX07'));
@@ -597,106 +616,224 @@ begin
             slTxst.Add(recordId);
             tlTxst.Add(r);
             //AddMessage(recordID);
-        end;
+        end; }
     end;
     //ListStringsInStringList(slAssets);
-    ListStringsInStringList(slNPC);
+    //ListStringsInStringList(slNPC);
+    ListStringsInStringList(slRaceSex);
 
     slRace.Free;
     slNpc.Free;
     slHdpt.Free;
     slTxst.Free;
+    slRaceSex.Free;
 end;
 
 procedure ProcessRecords;
+{
+
+}
+var
+    i: integer;
+begin
+    for i:=0 to Pred(tlRace.Count) do begin
+        ProcessRace(ObjectToElement(tlRace[i]));
+    end;
+end;
+
+procedure ProcessRace(race: IInterface);
 {
     Process records
 }
 var
     i, k, l, m, textureCount: integer;
-    r, e, eTints, eTintGroup, eOptions, eOption, eTextures: IInterface;
-    //r, npc, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
+    r, e, eTints, eTintGroup, eOptions, eOption, eTextures, eHeadParts, eHeadPart, eHead, eFaceDetails, eFace, eTxst: IInterface;
     bTint: Boolean;
-    recordId: string;
+    recordId, recordIdHere, material, texture: string;
+    slTxst: TStringList;
+    tlTxst: TList;
 begin
+    slTxst := TStringList.Create;
+    tlTxst := TList.Create;
+    ////////////////////////////////////////////////////////////////////
     //Race
-    for i:=0 to Pred(tlRace) do begin
-        r := ObjectToElement(tlRace[i]);
+    r := race;
+    recordId := GetFileName(r) + #9 + ShortName(r);
+    AddMessage(recordId);
+
+    //Male Head Parts (sorted)
+    //  Head Part
+    //    HEAD > Links To HDPT record
+    // if ElementExists(r, 'Male Head Parts') then begin
+    //     eHeadParts := ElementByPath(r, 'Male Head Parts');
+    //     for k := 0 to Pred(ElementCount(eHeadParts)) do begin
+    //         eHeadPart := ElementByIndex(eHeadParts, k);
+    //         eHead := WinningOverride(LinksTo(ElementByIndex(eHeadPart, 1)));
+    //         recordIdHere := GetFileName(eHead) + #9 + ShortName(eHead);
+    //         AddMessage(recordIdHere);
+    //     end;
+    // end;
+
+    //Male Race Presets
+    //  RPRM - Preset NPC#0 > Links to NPC_ preset
+
+    //Male Face Details (sorted)
+    //  FTSM - Texture Set > Links to TXST facegen head textures
+    if ElementExists(r, 'Male Face Details') then begin
+        eFaceDetails := ElementByPath(r, 'Male Face Details');
+        for k := 0 to Pred(ElementCount(eFaceDetails)) do begin
+            eTxst := WinningOverride(LinksTo(ElementByIndex(eFaceDetails, k)));
+            recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
+            if slTxst.IndexOf(recordIdHere) <> -1 then continue;
+            slTxst.Add(recordIdHere);
+            tlTxst.Add(eTxst);
+        end;
+    end;
+
+
+    //DFTM - Male Default Face Texture > Links to TXST facegen head default texture
+    if ElementExists(r, 'DFTM') then begin
+        eTxst := WinningOverride(LinksTo(ElementByPath(r, 'DFTM')));
+        recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
+        if slTxst.IndexOf(recordIdHere) = -1 then begin
+            slTxst.Add(recordIdHere);
+            tlTxst.Add(eTxst);
+        end;
+    end;
+
+
+    //Male Tints
+    if ElementExists(r, 'Male Tint Layers') then begin
+        eTints := ElementByPath(r, 'Male Tint Layers');
+        for k := 0 to Pred(ElementCount(eTints)) do begin
+            //Group # 0
+            eTintGroup := ElementByIndex(eTints, k);
+            //  Options
+            eOptions := ElementByName(eTintGroup, 'Options');
+            for l := 0 to Pred(ElementCount(eOptions)) do begin
+                //Option #0
+                eOption := ElementByIndex(eOptions, l);
+                //  Textures
+                eTextures := ElementByName(eOption, 'Textures');
+                textureCount := ElementCount(eTextures);
+                if textureCount = 1 then bTint := 1 else bTint := 0;
+                for m := 0 to Pred(textureCount) do begin
+                    //TIET - Texture #0
+                    e := ElementByIndex(eTextures, m);
+                    texture := GetEditValue(e);
+                    if bTint then AddTexture(recordId, texture, 'tint')
+                    else if m = 0 then AddTexture(recordId, texture, 'diffuse')
+                    else if m = 1 then AddTexture(recordId, texture, 'normal')
+                    else if m = 2 then AddTexture(recordId, texture, 'specular');
+                end;
+            end;
+        end;
+    end;
+
+    //Female Head Parts (sorted)
+    //  Head Part
+    //    HEAD > Links To HDPT record
+
+    //Female Race Presets
+    //  RPRF - Preset NPC#0 > Links to NPC_ preset
+
+    //Female Face Details (sorted)
+    //  FTSF - Texture Set > Links to TXST facegen head textures
+    if ElementExists(r, 'Female Face Details') then begin
+        eFaceDetails := ElementByPath(r, 'Female Face Details');
+        for k := 0 to Pred(ElementCount(eFaceDetails)) do begin
+            eTxst := WinningOverride(LinksTo(ElementByIndex(eFaceDetails, k)));
+            recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
+            if slTxst.IndexOf(recordIdHere) <> -1 then continue;
+            slTxst.Add(recordIdHere);
+            tlTxst.Add(eTxst);
+        end;
+    end;
+
+    //DFTF - Female Default Face Texture > Links to TXST facegen head default texture
+    if ElementExists(r, 'DFTF') then begin
+        eTxst := WinningOverride(LinksTo(ElementByPath(r, 'DFTF')));
+        recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
+        if slTxst.IndexOf(recordIdHere) = -1 then begin
+            slTxst.Add(recordIdHere);
+            tlTxst.Add(eTxst);
+        end;
+    end;
+
+    //Female Tints
+    if ElementExists(r, 'Female Tint Layers') then begin
+        eTints := ElementByPath(r, 'Female Tint Layers');
+        for k := 0 to Pred(ElementCount(eTints)) do begin
+            //Group # 0
+            eTintGroup := ElementByIndex(eTints, k);
+            //  Options
+            eOptions := ElementByName(eTintGroup, 'Options');
+            for l := 0 to Pred(ElementCount(eOptions)) do begin
+                //Option #0
+                eOption := ElementByIndex(eOptions, l);
+                //  Textures
+                eTextures := ElementByName(eOption, 'Textures');
+                textureCount := ElementCount(eTextures);
+                if textureCount = 1 then bTint := 1 else bTint := 0;
+                for m := 0 to Pred(textureCount) do begin
+                    //TIET - Texture #0
+                    e := ElementByIndex(eTextures, m);
+                    texture := GetEditValue(e);
+                    if bTint then AddTexture(recordId, texture, 'tint')
+                    else if m = 0 then AddTexture(recordId, texture, 'diffuse')
+                    else if m = 1 then AddTexture(recordId, texture, 'normal')
+                    else if m = 2 then AddTexture(recordId, texture, 'specular');
+                end;
+            end;
+        end;
+    end;
+    ////////////////////////////////////////////////////////////////////
+    //Txst
+    for i := 0 to Pred(tlTxst.Count) do begin
+        r := ObjectToElement(tlTxst[i]);
         recordId := GetFileName(r) + #9 + ShortName(r);
 
-        //Male Head Parts (sorted)
-        //  Head Part
-        //    HEAD > Links To HDPT record
+        if GetElementEditValues(r, 'DNAM - Flags\Facegen Textures') <> '1' then continue;
 
-        //Male Race Presets
-        //  RPRM - Preset NPC#0 > Links to NPC_ preset
-
-        //Male Face Details (sorted)
-        //  FTSM - Texture Set > Links to TXST facegen head textures
-
-        //DFTM - Male Default Face Texture > Links to TXST facegen head default texture
-
-        //Male Tints
-        if ElementExists(r, 'Male Tint Layers') then begin
-            eTints := ElementByPath(r, 'Male Tint Layers');
-            for k := 0 to Pred(ElementCount(eTints)) do begin
-                //Group # 0
-                eTintGroup := ElementByIndex(eTints, k);
-                //  Options
-                eOptions := ElementByName(eTintGroup, 'Options');
-                for l := 0 to Pred(ElementCount(eOptions)) do begin
-                    //Option #0
-                    eOption := ElementByIndex(eOptions, l);
-                    //  Textures
-                    eTextures := ElementByName(eOption, 'Textures');
-                    textureCount := ElementCount(eTextures);
-                    if textureCount = 1 then bTint := 1 else bTint := 0;
-                    for m := 0 to Pred(textureCount) do begin
-                        //TIET - Texture #0
-                        e := ElementByIndex(eTextures, m);
-                        AddTexture(recordId, GetEditValue(e));
-                    end;
-                end;
-            end;
+        if ElementExists(r, 'Textures (RGB/A)\TX00') then begin
+            AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX00'), 'diffuse');
+        end;
+        if ElementExists(r, 'Textures (RGB/A)\TX01') then begin
+            AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX01'), 'normal');
+        end;
+        if ElementExists(r, 'Textures (RGB/A)\TX07') then begin
+            AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX07'), 'specular');
         end;
 
-        //Female Head Parts (sorted)
-        //  Head Part
-        //    HEAD > Links To HDPT record
-
-        //Female Race Presets
-        //  RPRF - Preset NPC#0 > Links to NPC_ preset
-
-        //Female Face Details (sorted)
-        //  FTSF - Texture Set > Links to TXST facegen head textures
-
-        //DFTF - Female Default Face Texture > Links to TXST facegen head default texture
-
-        //Female Tints
-        if ElementExists(r, 'Female Tint Layers') then begin
-            eTints := ElementByPath(r, 'Female Tint Layers');
-            for k := 0 to Pred(ElementCount(eTints)) do begin
-                //Group # 0
-                eTintGroup := ElementByIndex(eTints, k);
-                //  Options
-                eOptions := ElementByName(eTintGroup, 'Options');
-                for l := 0 to Pred(ElementCount(eOptions)) do begin
-                    //Option #0
-                    eOption := ElementByIndex(eOptions, l);
-                    //  Textures
-                    eTextures := ElementByName(eOption, 'Textures');
-                    textureCount := ElementCount(eTextures);
-                    if textureCount = 1 then bTint := 1 else bTint := 0;
-                    for m := 0 to Pred(textureCount) do begin
-                        //TIET - Texture #0
-                        e := ElementByIndex(eTextures, m);
-                        AddTexture(recordId, GetEditValue(e));
-                    end;
-                end;
-            end;
+        if ElementExists(r, 'MNAM') then begin
+            material := wbNormalizeResourceName(GetElementEditValues(r, 'MNAM'), resMaterial);
+            slMaterials.Add(material);
+            slAssets.Add(material);
+            AddMaterialTextures(material);
         end;
-
     end;
+
+    TextureInfo;
+
+
+    slTxst.Free;
+    tlTxst.Free;
+    slDiffuseTextures.Free;
+    slNormalTextures.Free;
+    slSpecularTextures.Free;
+
+    slDiffuseTextures := TStringList.Create;
+    slDiffuseTextures.Sorted := True;
+    slDiffuseTextures.Duplicates := dupIgnore;
+
+    slNormalTextures := TStringList.Create;
+    slNormalTextures.Sorted := True;
+    slNormalTextures.Duplicates := dupIgnore;
+
+    slSpecularTextures := TStringList.Create;
+    slSpecularTextures.Sorted := True;
+    slSpecularTextures.Duplicates := dupIgnore;
+
 end;
 
 procedure TextureInfo;
@@ -705,9 +842,23 @@ var
     f: string;
 begin
     AddMessage('=======================================================================================');
-    AddMessage('Textures:');
-    for i := 0 to Pred(slTextures.Count) do begin
-        f := slTextures[i];
+    AddMessage('Diffuse textures:');
+    for i := 0 to Pred(slDiffuseTextures.Count) do begin
+        f := slDiffuseTextures[i];
+        if f = '' then continue;
+        AddMessage(f + #9 + GetTextureInfo(f));
+    end;
+    AddMessage('=======================================================================================');
+    AddMessage('Normal textures:');
+    for i := 0 to Pred(slNormalTextures.Count) do begin
+        f := slNormalTextures[i];
+        if f = '' then continue;
+        AddMessage(f + #9 + GetTextureInfo(f));
+    end;
+    AddMessage('=======================================================================================');
+    AddMessage('Specular textures:');
+    for i := 0 to Pred(slSpecularTextures.Count) do begin
+        f := slSpecularTextures[i];
         if f = '' then continue;
         AddMessage(f + #9 + GetTextureInfo(f));
     end;
@@ -718,7 +869,7 @@ end;
 // Generic Functions and Procedures go below.
 // ----------------------------------------------------
 
-procedure AddTexture(id, texture: string);
+procedure AddTexture(id, texture, textureType: string);
 {
     Add texture to texture string lists if present, and warn if missing for the id.
 }
@@ -731,6 +882,20 @@ begin
     end;
     slTextures.Add(texture);
     slAssets.Add(texture);
+
+    if textureType = '' then begin
+        if SameText(RightStr(texture, 6), '_d.dds') then slDiffuseTextures.add(texture)
+        else if SameText(RightStr(texture, 6), '_n.dds') then slNormalTextures.add(texture)
+        else if SameText(RightStr(texture, 6), '_s.dds') then slSpecularTextures.add(texture)
+        else AddMessage('Texture type could not verified:' + #9 + texture);
+    end
+    else if textureType = 'tint' then begin
+        slDiffuseTextures.Add(texture);
+        slTintTextures.Add(texture);
+    end
+    else if textureType = 'diffuse' then slDiffuseTextures.Add(texture)
+    else if textureType = 'normal' then slNormalTextures.Add(texture)
+    else if textureType = 'specular' then slSpecularTextures.Add(texture);
 end;
 
 function GetTextureInfo(f: string): string;
@@ -755,11 +920,7 @@ begin
         end;
         height := dds.NativeValues['HEADER\dwHeight'];
         width := dds.NativeValues['HEADER\dwWidth'];
-        mipmaps := dds.NativeValues['HEADER\dwMipMapCount'];
-        if dds.NativeValues['HEADER\dwCaps2'] > 0 then
-            Result := IntToStr(height) + ' x ' + IntToStr(width) + #9 + 'Mips: ' + IntToStr(mipmaps) + #9 + 'Cubemap: true'
-        else
-            Result := IntToStr(height) + ' x ' + IntToStr(width) + #9 + 'Mips: ' + IntToStr(mipmaps);
+        Result := IntToStr(height) + ' x ' + IntToStr(width);
     finally
         dds.Free;
     end;
@@ -802,40 +963,34 @@ begin
         try
             bgsm.LoadFromResource(f);
             el := bgsm.Elements['Textures'];
-            for i := 0 to Pred(el.Count) do begin
+            for i := 0 to 2 do begin
                 tp := el[i].EditValue;
                 if Length(tp) < 4 then continue;
-                AddTexture(f, tp);
+                if i = 0 then AddTexture(f, tp, 'diffuse')
+                else if i = 1 then AddTexture(f, tp, 'normal')
+                else if i = 2 then AddTexture(f, tp, 'specular');
             end;
         finally
             bgsm.Free;
         end;
     end
     else if RightStr(f, 4) = 'bgem' then begin
-        bgem := TwbBGEMFile.Create;
-        try
-            bgem.LoadFromResource(f);
+        AddMessage('Skipping BGEM material: ' + f);
+        // bgem := TwbBGEMFile.Create;
+        // try
+        //     bgem.LoadFromResource(f);
 
-            el := bgem.Elements['Base Texture'];
-            AddTexture(f, el);
+        //     el := bgem.Elements['Base Texture'];
+        //     AddTexture(f, el);
 
-            el := bgem.Elements['Grayscale Texture'];
-            AddTexture(f, el);
+        //     el := bgem.Elements['Normal Texture'];
+        //     AddTexture(f, el);
 
-            el := bgem.Elements['Envmap Texture'];
-            AddTexture(f, el);
-
-            el := bgem.Elements['Normal Texture'];
-            AddTexture(f, el);
-
-            el := bgem.Elements['Envmap Mask Texture'];
-            AddTexture(f, el);
-
-            el := bgem.Elements['Glow Texture'];
-            AddTexture(f, el);
-        finally
-            bgem.Free;
-        end;
+        //     el := bgem.Elements['Envmap Mask Texture'];
+        //     AddTexture(f, el);
+        // finally
+        //     bgem.Free;
+        // end;
     end;
 end;
 
