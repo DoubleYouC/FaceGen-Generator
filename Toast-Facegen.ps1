@@ -11,6 +11,23 @@ $jsonFilePath = Join-Path -Path $scriptDir -ChildPath "config.json"
 $script:configfile  = $null
 
 $script:regkey = 'HKLM:\Software\Wow6432Node\Bethesda Softworks\Fallout4'
+function GetOrSelectGamePath {
+    try {
+        $script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
+    } catch {
+        $openFileDialogFo4 = New-Object System.Windows.Forms.OpenFileDialog
+        $openFileDialogFo4.Title = "Select Fallout4.exe"
+        $openFileDialogFo4.Filter = "Fallout 4|Fallout4.exe"
+        $openFileDialogFo4.InitialDirectory = $scriptDir
+        if ($openFileDialogFo4.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            $script:fo4 = Split-Path -Path $openFileDialogFo4.FileName -Parent
+        } else {
+            Write-Host "`nERROR: Fallout 4 directory not found.`n"
+            pause
+            exit
+        }
+    }
+}
 if (Test-Path $jsonFilePath) {
     $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
     $script:fo4 = [string]$script:configfile.Fallout4Directory
@@ -54,24 +71,6 @@ if ($args -contains "-zip") {
 if ($args -contains "-clean") {
     # Automatically delete loose files without prompting
     Write-Output "-clean has been passed. All loose files will be automatically deleted."
-}
-
-function GetOrSelectGamePath {
-    try {
-        $script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
-    } catch {
-        $openFileDialogFo4 = New-Object System.Windows.Forms.OpenFileDialog
-        $openFileDialogFo4.Title = "Select Fallout4.exe"
-        $openFileDialogFo4.Filter = "Fallout 4|Fallout4.exe"
-        $openFileDialogFo4.InitialDirectory = $scriptDir
-        if ($openFileDialogFo4.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $script:fo4 = Split-Path -Path $openFileDialogFo4.FileName -Parent
-        } else {
-            Write-Host "`nERROR: Fallout 4 directory not found.`n"
-            pause
-            exit
-        }
-    }
 }
 
 # Function to get or select the xEdit/FO4Edit path and executable
