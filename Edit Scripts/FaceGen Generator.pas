@@ -521,8 +521,8 @@ begin
             sex := 'Male';
             if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
             slRaceSex.Add(ShortName(race) + #9 + sex + #9 + ShortName(r));
-            joFaces.O[ShortName(race)].A['sex'].Add(sex);
-            //joRules.O[key].S['level0'] := lod4;
+            joFaces.O['races'].O[ShortName(race)].S[sex] := true;
+            joFaces.O['races'].O[ShortName(race)].A[sex + '_NPCs'].Add(ShortName(r));
 
 
             // AddRequiredElementMasters(r, iPluginFile, False, True);
@@ -639,6 +639,31 @@ begin
     for i:=0 to Pred(tlRace.Count) do begin
         ProcessRace(ObjectToElement(tlRace[i]));
     end;
+
+    for i:=0 to Pred(tlNpc.Count) do begin
+        ProcessNPC(ObjectToElement(tlNpc[i]));
+    end;
+end;
+
+procedure ProcessNPC(r: IInterface);
+var
+    masterFile, relativeFormid: string;
+    npc: IInterface;
+begin
+    if bOnlyMissing or bQuickFaceFix then begin
+        masterFile := GetFileName(MasterOrSelf(r));
+        relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
+        if FaceGenExists(relativeFormid, masterFile) then Exit;
+    end;
+
+
+    AddRequiredElementMasters(r, iPluginFile, False, True);
+    SortMasters(iPluginFile);
+    npc := wbCopyElementToFile(r, iPluginFile, False, True);
+
+    if not bQuickFaceFix then Exit;
+    SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
+
 end;
 
 procedure ProcessRace(race: IInterface);
@@ -659,133 +684,141 @@ begin
     //Race
     r := race;
     recordId := GetFileName(r) + #9 + ShortName(r);
+    AddMessage('---------------------------------------------------------------------------------------');
     AddMessage(recordId);
 
-    //Male Head Parts (sorted)
-    //  Head Part
-    //    HEAD > Links To HDPT record
-    // if ElementExists(r, 'Male Head Parts') then begin
-    //     eHeadParts := ElementByPath(r, 'Male Head Parts');
-    //     for k := 0 to Pred(ElementCount(eHeadParts)) do begin
-    //         eHeadPart := ElementByIndex(eHeadParts, k);
-    //         eHead := WinningOverride(LinksTo(ElementByIndex(eHeadPart, 1)));
-    //         recordIdHere := GetFileName(eHead) + #9 + ShortName(eHead);
-    //         AddMessage(recordIdHere);
-    //     end;
-    // end;
+    if StrToBool(joFaces.O['races'].O[ShortName(r)].S['Male']) then begin
+        //Male Head Parts (sorted)
+        //  Head Part
+        //    HEAD > Links To HDPT record
+        // if ElementExists(r, 'Male Head Parts') then begin
+        //     eHeadParts := ElementByPath(r, 'Male Head Parts');
+        //     for k := 0 to Pred(ElementCount(eHeadParts)) do begin
+        //         eHeadPart := ElementByIndex(eHeadParts, k);
+        //         eHead := WinningOverride(LinksTo(ElementByIndex(eHeadPart, 1)));
+        //         recordIdHere := GetFileName(eHead) + #9 + ShortName(eHead);
+        //         AddMessage(recordIdHere);
+        //     end;
+        // end;
 
-    //Male Race Presets
-    //  RPRM - Preset NPC#0 > Links to NPC_ preset
+        //Male Race Presets
+        //  RPRM - Preset NPC#0 > Links to NPC_ preset
 
-    //Male Face Details (sorted)
-    //  FTSM - Texture Set > Links to TXST facegen head textures
-    if ElementExists(r, 'Male Face Details') then begin
-        eFaceDetails := ElementByPath(r, 'Male Face Details');
-        for k := 0 to Pred(ElementCount(eFaceDetails)) do begin
-            eTxst := WinningOverride(LinksTo(ElementByIndex(eFaceDetails, k)));
+        //Male Face Details (sorted)
+        //  FTSM - Texture Set > Links to TXST facegen head textures
+        if ElementExists(r, 'Male Face Details') then begin
+            eFaceDetails := ElementByPath(r, 'Male Face Details');
+            for k := 0 to Pred(ElementCount(eFaceDetails)) do begin
+                eTxst := WinningOverride(LinksTo(ElementByIndex(eFaceDetails, k)));
+                recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
+                if slTxst.IndexOf(recordIdHere) <> -1 then continue;
+                slTxst.Add(recordIdHere);
+                tlTxst.Add(eTxst);
+            end;
+        end;
+
+
+        //DFTM - Male Default Face Texture > Links to TXST facegen head default texture
+        if ElementExists(r, 'DFTM') then begin
+            eTxst := WinningOverride(LinksTo(ElementByPath(r, 'DFTM')));
             recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
-            if slTxst.IndexOf(recordIdHere) <> -1 then continue;
-            slTxst.Add(recordIdHere);
-            tlTxst.Add(eTxst);
+            if slTxst.IndexOf(recordIdHere) = -1 then begin
+                slTxst.Add(recordIdHere);
+                tlTxst.Add(eTxst);
+            end;
         end;
-    end;
 
 
-    //DFTM - Male Default Face Texture > Links to TXST facegen head default texture
-    if ElementExists(r, 'DFTM') then begin
-        eTxst := WinningOverride(LinksTo(ElementByPath(r, 'DFTM')));
-        recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
-        if slTxst.IndexOf(recordIdHere) = -1 then begin
-            slTxst.Add(recordIdHere);
-            tlTxst.Add(eTxst);
-        end;
-    end;
-
-
-    //Male Tints
-    if ElementExists(r, 'Male Tint Layers') then begin
-        eTints := ElementByPath(r, 'Male Tint Layers');
-        for k := 0 to Pred(ElementCount(eTints)) do begin
-            //Group # 0
-            eTintGroup := ElementByIndex(eTints, k);
-            //  Options
-            eOptions := ElementByName(eTintGroup, 'Options');
-            for l := 0 to Pred(ElementCount(eOptions)) do begin
-                //Option #0
-                eOption := ElementByIndex(eOptions, l);
-                //  Textures
-                eTextures := ElementByName(eOption, 'Textures');
-                textureCount := ElementCount(eTextures);
-                if textureCount = 1 then bTint := 1 else bTint := 0;
-                for m := 0 to Pred(textureCount) do begin
-                    //TIET - Texture #0
-                    e := ElementByIndex(eTextures, m);
-                    texture := GetEditValue(e);
-                    if bTint then AddTexture(recordId, texture, 'tint')
-                    else if m = 0 then AddTexture(recordId, texture, 'diffuse')
-                    else if m = 1 then AddTexture(recordId, texture, 'normal')
-                    else if m = 2 then AddTexture(recordId, texture, 'specular');
+        //Male Tints
+        if ElementExists(r, 'Male Tint Layers') then begin
+            eTints := ElementByPath(r, 'Male Tint Layers');
+            for k := 0 to Pred(ElementCount(eTints)) do begin
+                //Group # 0
+                eTintGroup := ElementByIndex(eTints, k);
+                //  Options
+                eOptions := ElementByName(eTintGroup, 'Options');
+                for l := 0 to Pred(ElementCount(eOptions)) do begin
+                    //Option #0
+                    eOption := ElementByIndex(eOptions, l);
+                    //  Textures
+                    eTextures := ElementByName(eOption, 'Textures');
+                    textureCount := ElementCount(eTextures);
+                    if textureCount = 1 then bTint := 1 else bTint := 0;
+                    for m := 0 to Pred(textureCount) do begin
+                        //TIET - Texture #0
+                        e := ElementByIndex(eTextures, m);
+                        texture := GetEditValue(e);
+                        if bTint then AddTexture(recordId, texture, 'tint')
+                        else if m = 0 then AddTexture(recordId, texture, 'diffuse')
+                        else if m = 1 then AddTexture(recordId, texture, 'normal')
+                        else if m = 2 then AddTexture(recordId, texture, 'specular');
+                    end;
                 end;
             end;
         end;
+
     end;
 
-    //Female Head Parts (sorted)
-    //  Head Part
-    //    HEAD > Links To HDPT record
+    if StrToBool(joFaces.O['races'].O[ShortName(r)].S['Female']) then begin
 
-    //Female Race Presets
-    //  RPRF - Preset NPC#0 > Links to NPC_ preset
+        //Female Head Parts (sorted)
+        //  Head Part
+        //    HEAD > Links To HDPT record
 
-    //Female Face Details (sorted)
-    //  FTSF - Texture Set > Links to TXST facegen head textures
-    if ElementExists(r, 'Female Face Details') then begin
-        eFaceDetails := ElementByPath(r, 'Female Face Details');
-        for k := 0 to Pred(ElementCount(eFaceDetails)) do begin
-            eTxst := WinningOverride(LinksTo(ElementByIndex(eFaceDetails, k)));
+        //Female Race Presets
+        //  RPRF - Preset NPC#0 > Links to NPC_ preset
+
+        //Female Face Details (sorted)
+        //  FTSF - Texture Set > Links to TXST facegen head textures
+        if ElementExists(r, 'Female Face Details') then begin
+            eFaceDetails := ElementByPath(r, 'Female Face Details');
+            for k := 0 to Pred(ElementCount(eFaceDetails)) do begin
+                eTxst := WinningOverride(LinksTo(ElementByIndex(eFaceDetails, k)));
+                recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
+                if slTxst.IndexOf(recordIdHere) <> -1 then continue;
+                slTxst.Add(recordIdHere);
+                tlTxst.Add(eTxst);
+            end;
+        end;
+
+        //DFTF - Female Default Face Texture > Links to TXST facegen head default texture
+        if ElementExists(r, 'DFTF') then begin
+            eTxst := WinningOverride(LinksTo(ElementByPath(r, 'DFTF')));
             recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
-            if slTxst.IndexOf(recordIdHere) <> -1 then continue;
-            slTxst.Add(recordIdHere);
-            tlTxst.Add(eTxst);
+            if slTxst.IndexOf(recordIdHere) = -1 then begin
+                slTxst.Add(recordIdHere);
+                tlTxst.Add(eTxst);
+            end;
         end;
-    end;
 
-    //DFTF - Female Default Face Texture > Links to TXST facegen head default texture
-    if ElementExists(r, 'DFTF') then begin
-        eTxst := WinningOverride(LinksTo(ElementByPath(r, 'DFTF')));
-        recordIdHere := GetFileName(eTxst) + #9 + ShortName(eTxst);
-        if slTxst.IndexOf(recordIdHere) = -1 then begin
-            slTxst.Add(recordIdHere);
-            tlTxst.Add(eTxst);
-        end;
-    end;
-
-    //Female Tints
-    if ElementExists(r, 'Female Tint Layers') then begin
-        eTints := ElementByPath(r, 'Female Tint Layers');
-        for k := 0 to Pred(ElementCount(eTints)) do begin
-            //Group # 0
-            eTintGroup := ElementByIndex(eTints, k);
-            //  Options
-            eOptions := ElementByName(eTintGroup, 'Options');
-            for l := 0 to Pred(ElementCount(eOptions)) do begin
-                //Option #0
-                eOption := ElementByIndex(eOptions, l);
-                //  Textures
-                eTextures := ElementByName(eOption, 'Textures');
-                textureCount := ElementCount(eTextures);
-                if textureCount = 1 then bTint := 1 else bTint := 0;
-                for m := 0 to Pred(textureCount) do begin
-                    //TIET - Texture #0
-                    e := ElementByIndex(eTextures, m);
-                    texture := GetEditValue(e);
-                    if bTint then AddTexture(recordId, texture, 'tint')
-                    else if m = 0 then AddTexture(recordId, texture, 'diffuse')
-                    else if m = 1 then AddTexture(recordId, texture, 'normal')
-                    else if m = 2 then AddTexture(recordId, texture, 'specular');
+        //Female Tints
+        if ElementExists(r, 'Female Tint Layers') then begin
+            eTints := ElementByPath(r, 'Female Tint Layers');
+            for k := 0 to Pred(ElementCount(eTints)) do begin
+                //Group # 0
+                eTintGroup := ElementByIndex(eTints, k);
+                //  Options
+                eOptions := ElementByName(eTintGroup, 'Options');
+                for l := 0 to Pred(ElementCount(eOptions)) do begin
+                    //Option #0
+                    eOption := ElementByIndex(eOptions, l);
+                    //  Textures
+                    eTextures := ElementByName(eOption, 'Textures');
+                    textureCount := ElementCount(eTextures);
+                    if textureCount = 1 then bTint := 1 else bTint := 0;
+                    for m := 0 to Pred(textureCount) do begin
+                        //TIET - Texture #0
+                        e := ElementByIndex(eTextures, m);
+                        texture := GetEditValue(e);
+                        if bTint then AddTexture(recordId, texture, 'tint')
+                        else if m = 0 then AddTexture(recordId, texture, 'diffuse')
+                        else if m = 1 then AddTexture(recordId, texture, 'normal')
+                        else if m = 2 then AddTexture(recordId, texture, 'specular');
+                    end;
                 end;
             end;
         end;
+
     end;
     ////////////////////////////////////////////////////////////////////
     //Txst
@@ -1053,6 +1086,14 @@ function TrimLeftChars(s: string; chars: integer): string;
 }
 begin
     Result := LeftStr(s, Length(s) - chars);
+end;
+
+function StrToBool(str: string): boolean;
+{
+    Given a string, return a boolean.
+}
+begin
+    if (LowerCase(str) = 'true') or (str = '1') then Result := True else Result := False;
 end;
 
 end.
