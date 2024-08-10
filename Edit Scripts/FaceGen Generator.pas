@@ -155,6 +155,8 @@ var
     ini: TIniFile;
 begin
     ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
+    sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
+    if sResolution = '512 ' then sResolution := '512';
     frm := TForm.Create(nil);
     try
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
@@ -231,7 +233,7 @@ begin
         cbResolution.Width := 50;
         cbResolution.Style := csDropDownList;
         cbResolution.Items.Assign(slResolutions);
-        cbResolution.ItemIndex := 1;
+        cbResolution.ItemIndex := slResolutions.IndexOf(sResolution);
         cbResolution.Hint := 'Sets the texture resolution.';
         cbResolution.ShowHint := True;
         CreateLabel(gbOptions, 20, cbResolution.Top + 3, 'Resolution');
