@@ -154,10 +154,17 @@ var
     fImage: TImage;
     cbResolution: TComboBox;
     ini: TIniFile;
+    bCKPEExists: Boolean;
 begin
-    ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
-    sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
-    if sResolution = '512 ' then sResolution := '512';
+    bCKPEExists := false;
+    if FileExists(GamePath + 'CreationKitPlatformExtended.ini') then begin
+        bCKPEExists := true;
+        ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
+        sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
+        if sResolution = '512 ' then sResolution := '512';
+        if slResolutions.IndexOf(sResolution) = -1 then slResolutions.Add(sResolution);
+    end
+    else sResolution := '2048';
     frm := TForm.Create(nil);
     try
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
@@ -277,7 +284,7 @@ begin
         bAll := rbAll.Checked;
         sResolution := slResolutions[cbResolution.ItemIndex];
         joConfig.S['Resolution'] := sResolution;
-        ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
+        if bCKPEExists then ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
 
         if bOnlyMissing then AddMessage('Mode: Only Missing')
         else if bQuickFaceFix then AddMessage('Mode: Quick Face Fix')
