@@ -14,7 +14,7 @@ var
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
     slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
-    joFaces: TJsonObject;
+    joFaces, joConfig: TJsonObject;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -77,7 +77,10 @@ begin
     slSpecularTextures.Free;
     slTintTextures.Free;
 
+    joConfig.SaveToFile(sVEFSDir + '\config.json', False, TEncoding.UTF8, True);
+    joConfig.Free;
     joFaces.SaveToFile(sVEFSDir + '\Faces.json', False, TEncoding.UTF8, True);
+    joFaces.Free;
     Result := 0;
 end;
 
@@ -122,6 +125,7 @@ begin
     slPluginFiles := TStringList.Create;
 
     joFaces := TJsonObject.Create;
+    joConfig := TJsonObject.Create;
 end;
 
 // ----------------------------------------------------
@@ -334,6 +338,7 @@ begin
                 sVEFSDir := TrimRightChars(launchOption, 9);
                 AddMessage('VEFS Dir: ' + sVEFSDir);
                 sPicVefs := sVEFSDir + '\Images\vefs.png';
+                joConfig.LoadFromFile(sVEFSDir + '\config.json');
                 continue;
             end;
             if Pos('-bOnlyMissing:', launchOption) > 0 then begin
@@ -644,7 +649,7 @@ procedure ProcessRecords;
     Process Records.
 }
 var
-    i: integer;
+    i, count: integer;
     slNpc: TStringList;
 begin
     slNpc := TStringList.Create;
@@ -652,14 +657,16 @@ begin
         ProcessRace(ObjectToElement(tlRace[i]));
     end;
 
+    count := 0;
     for i:=0 to Pred(tlNpc.Count) do begin
-        ProcessNPC(ObjectToElement(tlNpc[i]), slNpc);
+        ProcessNPC(ObjectToElement(tlNpc[i]), slNpc, count);
     end;
     ListStringsInStringList(slNPC);
+    joConfig.S['Face Count'] := count;
     slNpc.Free;
 end;
 
-procedure ProcessNPC(r: IInterface; var slNPC: TStringList);
+procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
 {
     Process NPC
 }
@@ -679,9 +686,11 @@ begin
     SortMasters(iPluginFile);
     npc := wbCopyElementToFile(r, iPluginFile, False, True);
     slNpc.Add(ShortName(r));
+    count := count + 1;
 
     if not bQuickFaceFix then Exit;
     SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
+    count := 0;
 
 end;
 
