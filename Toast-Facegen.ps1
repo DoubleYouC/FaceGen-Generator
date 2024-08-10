@@ -268,6 +268,8 @@ try {
         Write-Host "No faces require FaceGen Generation. VEFS will now close."
         Start-Sleep -Seconds 5
         Exit
+    } else {
+        Write-Host "Faces to make: $FaceCount"
     }
 
     HandleSteamApiMismatch
