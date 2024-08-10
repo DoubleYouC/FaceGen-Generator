@@ -129,6 +129,7 @@ begin
     slResolutions.Add('512');
     slResolutions.Add('1024');
     slResolutions.Add('2048');
+    slResolutions.Add('4096');
 
 
     joFaces := TJsonObject.Create;
