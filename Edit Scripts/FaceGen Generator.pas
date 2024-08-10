@@ -631,27 +631,35 @@ end;
 
 procedure ProcessRecords;
 {
-
+    Process Records.
 }
 var
     i: integer;
+    slNpc: TStringList;
 begin
+    slNpc := TStringList.Create;
     for i:=0 to Pred(tlRace.Count) do begin
         ProcessRace(ObjectToElement(tlRace[i]));
     end;
 
     for i:=0 to Pred(tlNpc.Count) do begin
-        ProcessNPC(ObjectToElement(tlNpc[i]));
+        ProcessNPC(ObjectToElement(tlNpc[i]), slNpc);
     end;
+    ListStringsInStringList(slNPC);
+    slNpc.Free;
 end;
 
-procedure ProcessNPC(r: IInterface);
+procedure ProcessNPC(r: IInterface; var slNPC: TStringList);
+{
+    Process NPC
+}
 var
     masterFile, relativeFormid: string;
-    npc: IInterface;
+    npc, masterRecord: IInterface;
 begin
+    masterRecord := MasterOrSelf(r);
+    masterFile := GetFileName(masterRecord);
     if bOnlyMissing or bQuickFaceFix then begin
-        masterFile := GetFileName(MasterOrSelf(r));
         relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
         if FaceGenExists(relativeFormid, masterFile) then Exit;
     end;
@@ -660,6 +668,7 @@ begin
     AddRequiredElementMasters(r, iPluginFile, False, True);
     SortMasters(iPluginFile);
     npc := wbCopyElementToFile(r, iPluginFile, False, True);
+    slNpc.Add(ShortName(r));
 
     if not bQuickFaceFix then Exit;
     SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
@@ -668,7 +677,7 @@ end;
 
 procedure ProcessRace(race: IInterface);
 {
-    Process records
+    Process race
 }
 var
     i, k, l, m, textureCount: integer;
