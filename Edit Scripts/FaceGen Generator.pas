@@ -436,18 +436,19 @@ procedure CollectRecords;
     Collects records.
 }
 var
-    i, j, k, l, m, idx: integer;
+    i, j, k, l, m, idx, editorInc: integer;
     editorId, filename, recordId, masterFile, material, model, newEditorId, relativeFormid, texture, tri, sex: string;
     e, r, npc, race, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
     g: IwbGroupRecord;
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
-    slRace, slNpc, slTxst, slHdpt, slRaceSex: TStringList;
+    slRace, slNpc, slTxst, slHdpt, slRaceSex, slEditorIds: TStringList;
 begin
     slRace := TStringList.Create;
     slNpc := TStringList.Create;
     slHdpt := TStringList.Create;
     slTxst := TStringList.Create;
+    slEditorIds := TStringList.Create;
 
     slRaceSex := TStringList.Create;
     slRaceSex.Sorted := True;
@@ -509,7 +510,7 @@ begin
             if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
             if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
-            //if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
+            if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
 
             // if bOnlyMissing or bQuickFaceFix then begin
             //     masterFile := GetFileName(MasterOrSelf(r));
@@ -578,6 +579,14 @@ begin
             newEditorId := StringReplace(editorid, ' ', '', [rfReplaceAll, rfIgnoreCase]);
             newEditorId := StringReplace(newEditorId, '+', '', [rfReplaceAll, rfIgnoreCase]);
             newEditorId := StringReplace(newEditorId, '=', '', [rfReplaceAll, rfIgnoreCase]);
+            editorInc := 0;
+            idx := slEditorIds.IndexOf(newEditorId);
+            while idx <> -1 do begin
+                editorInc := editorInc + 1;
+                newEditorId := newEditorId + 'fix' + IntToStr(editorInc);
+                idx := slEditorIds.IndexOf(newEditorId);
+            end;
+            slEditorIds.Add(newEditorId);
             if SameText(editorId, newEditorId) then continue;
             AddRequiredElementMasters(r, iPluginFile, False, True);
             SortMasters(iPluginFile);
@@ -627,6 +636,7 @@ begin
     slHdpt.Free;
     slTxst.Free;
     slRaceSex.Free;
+    slEditorIds.Free;
 end;
 
 procedure ProcessRecords;
