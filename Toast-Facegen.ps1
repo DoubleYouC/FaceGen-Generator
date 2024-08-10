@@ -8,24 +8,23 @@ $scriptDir = Split-Path -Path $PSCommandPath -Parent
 $jsonFilePath = Join-Path -Path $scriptDir -ChildPath "config.json"
 
 # Variable to store location data
-$locationData = $null
+$script:configfile  = $null
 
 $script:regkey = 'HKLM:\Software\Wow6432Node\Bethesda Softworks\Fallout4'
-try {
-    $script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
-} catch {
-    $openFileDialogFo4 = New-Object System.Windows.Forms.OpenFileDialog
-    $openFileDialogFo4.Title = "Select Fallout4.exe"
-    $openFileDialogFo4.Filter = "Fallout 4|Fallout4.exe"
-    $openFileDialogFo4.InitialDirectory = $scriptDir
-    if ($openFileDialogFo4.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-        $script:fo4 = Split-Path -Path $openFileDialogFo4.FileName -Parent
+if (Test-Path $jsonFilePath) {
+    $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
+    $script:fo4 = [string]$script:configfile.Fallout4Directory
+    if (Test-Path $script:fo4) {
+        Write-Host "Fallout 4 path: $script:fo4"
     } else {
-        Write-Host "`nERROR: Fallout 4 directory not found.`n"
-        pause
-        exit
+        GetOrSelectGamePath
+        Write-Host "Fallout 4 path: $script:fo4"
     }
+} else {
+    GetOrSelectGamePath
+    Write-Host "Fallout 4 path: $script:fo4"
 }
+
 $script:data = Join-Path $fo4 "data"
 $script:CK = Join-Path $fo4 "Creationkit.exe"
 $script:Archive2 = Join-Path $script:fo4 "tools\archive2\archive2.exe"
@@ -57,8 +56,22 @@ if ($args -contains "-clean") {
     Write-Output "-clean has been passed. All loose files will be automatically deleted."
 }
 
-if (Test-Path $jsonFilePath) {
-    $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
+function GetOrSelectGamePath {
+    try {
+        $script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
+    } catch {
+        $openFileDialogFo4 = New-Object System.Windows.Forms.OpenFileDialog
+        $openFileDialogFo4.Title = "Select Fallout4.exe"
+        $openFileDialogFo4.Filter = "Fallout 4|Fallout4.exe"
+        $openFileDialogFo4.InitialDirectory = $scriptDir
+        if ($openFileDialogFo4.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            $script:fo4 = Split-Path -Path $openFileDialogFo4.FileName -Parent
+        } else {
+            Write-Host "`nERROR: Fallout 4 directory not found.`n"
+            pause
+            exit
+        }
+    }
 }
 
 # Function to get or select the xEdit/FO4Edit path and executable
@@ -110,13 +123,13 @@ function GetOrSelectxEditPath {
 
 function SaveSettings {
     # Save the settings
-    $locationData = @{
+    $script:configfile = @{
         xEditDirectory = $script:xEditPath
         xEditExecutable = $script:xEditExecutable
         scriptDirectory = $scriptDir
         Fallout4Directory = $script:fo4
     }
-    $locationData | ConvertTo-Json -Compress | Set-Content -Path $jsonFilePath -Force
+    $script:configfile | ConvertTo-Json -Compress | Set-Content -Path $jsonFilePath -Force
     Write-Host "`nSaved settings successfully.`n"
 }
 
@@ -267,9 +280,13 @@ try {
 
     #We must reread the config file to refresh its contents.
     $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
+    $NeedPlugin = [string]$script:configfile.NeedPlugin
     $FaceCount = [string]$script:configfile.Face_Count
     if ($FaceCount -eq "0") {
         Write-Host "No faces require FaceGen Generation. VEFS will now close."
+        if ($NeedPlugin -eq "false") {
+            Remove-Item -LiteralPath $script:facegenpatch
+        }
         Start-Sleep -Seconds 5
         Exit
     } else {
