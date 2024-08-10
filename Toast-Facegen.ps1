@@ -139,8 +139,12 @@ function CheckForFacegenPatch {
     }
 
     Start-Sleep 1
-    $script:xEditProcess.CloseMainWindow()
-    $script:xEditProcess.WaitForExit()
+    try {
+        $script:xEditProcess.CloseMainWindow()
+        $script:xEditProcess.WaitForExit()
+    } catch {
+        Write-Host 'xEdit was already closed by user.'
+    }
     while ($true) {
         if (Test-Path -Path $script:facegenpatch) {
             Write-Host "facegenpatch.esp found."
