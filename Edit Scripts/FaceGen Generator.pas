@@ -9,7 +9,7 @@ unit FaceGen;
 
 var
     iPluginFile: IInterface;
-    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bSteamAppIDTxtExists: Boolean;
+    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bSteamAppIDTxtExists, bNeedPlugin: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
     slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions: TStringList;
@@ -31,6 +31,7 @@ var
     i: integer;
 begin
     CreateObjects;
+    bNeedPlugin := false;
 
     bBatchMode := CheckLaunchArguments;
 
@@ -78,6 +79,7 @@ begin
     slTintTextures.Free;
     slResolutions.Free;
 
+    joConfig.S['NeedPlugin'] := bNeedPlugin;
     joConfig.SaveToFile(sVEFSDir + '\config.json', False, TEncoding.UTF8, True);
     joConfig.Free;
     joFaces.SaveToFile(sVEFSDir + '\Faces.json', False, TEncoding.UTF8, True);
@@ -631,6 +633,7 @@ begin
             AddRequiredElementMasters(r, iPluginFile, False, True);
             SortMasters(iPluginFile);
             headpart := wbCopyElementToFile(r, iPluginFile, False, True);
+            bNeedPlugin := true;
             SetElementEditValues(headpart, 'EDID', newEditorId);
 
             //AddMessage(recordID);
@@ -720,6 +723,7 @@ begin
     AddRequiredElementMasters(r, iPluginFile, False, True);
     SortMasters(iPluginFile);
     npc := wbCopyElementToFile(r, iPluginFile, False, True);
+    bNeedPlugin := true;
     slNpc.Add(ShortName(r));
     count := count + 1;
 
