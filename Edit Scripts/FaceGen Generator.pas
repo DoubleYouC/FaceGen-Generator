@@ -662,7 +662,7 @@ begin
         ProcessNPC(ObjectToElement(tlNpc[i]), slNpc, count);
     end;
     ListStringsInStringList(slNPC);
-    joConfig.S['Face Count'] := count;
+    joConfig.S['Face_Count'] := count;
     slNpc.Free;
 end;
 
