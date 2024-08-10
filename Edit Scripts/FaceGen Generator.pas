@@ -10,9 +10,9 @@ unit FaceGen;
 var
     iPluginFile: IInterface;
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bSteamAppIDTxtExists: Boolean;
-    sCKFixesINI, sVEFSDir, sPicVefs: string;
+    sCKFixesINI, sVEFSDir, sPicVefs, sResolution: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures: TStringList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig: TJsonObject;
 
@@ -76,6 +76,7 @@ begin
     slNormalTextures.Free;
     slSpecularTextures.Free;
     slTintTextures.Free;
+    slResolutions.Free;
 
     joConfig.SaveToFile(sVEFSDir + '\config.json', False, TEncoding.UTF8, True);
     joConfig.Free;
@@ -124,6 +125,12 @@ begin
 
     slPluginFiles := TStringList.Create;
 
+    slResolutions := TStringList.Create;
+    slResolutions.Add('512');
+    slResolutions.Add('1024');
+    slResolutions.Add('2048');
+
+
     joFaces := TJsonObject.Create;
     joConfig := TJsonObject.Create;
 end;
@@ -144,12 +151,15 @@ var
     uiScale: integer;
     picVefs: TPicture;
     fImage: TImage;
+    cbResolution: TComboBox;
+    ini: TIniFile;
 begin
+    ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
     frm := TForm.Create(nil);
     try
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
         frm.Width := 600;
-        frm.Height := 400;
+        frm.Height := 430;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
@@ -174,7 +184,7 @@ begin
         gbOptions.Width := frm.Width - 24;
         gbOptions.Left := 6;
         gbOptions.Caption := 'Options';
-        gbOptions.Height := 114;
+        gbOptions.Height := 144;
 
         rbFaceGenPreset := TRadioButton.Create(gbOptions);
         rbFaceGenPreset.Name := 'rbFaceGenPreset';
@@ -214,11 +224,23 @@ begin
         rbAll.Caption := 'Generate All Faces';
         rbAll.ShowHint := True;
 
+        cbResolution := TComboBox.Create(gbOptions);
+        cbResolution.Parent := gbOptions;
+        cbResolution.Left := 90;
+        cbResolution.Top := 60;
+        cbResolution.Width := 50;
+        cbResolution.Style := csDropDownList;
+        cbResolution.Items.Assign(slResolutions);
+        cbResolution.ItemIndex := 1;
+        cbResolution.Hint := 'Sets the texture resolution.';
+        cbResolution.ShowHint := True;
+        CreateLabel(gbOptions, 20, cbResolution.Top + 3, 'Resolution');
+
         btnStart := TButton.Create(gbOptions);
         btnStart.Parent := gbOptions;
         btnStart.Caption := 'Start';
         btnStart.ModalResult := mrOk;
-        btnStart.Top := rbFaceGenPreset.Top + 50;
+        btnStart.Top := cbResolution.Top + 50;
 
         btnCancel := TButton.Create(gbOptions);
         btnCancel.Parent := gbOptions;
@@ -250,6 +272,9 @@ begin
         bOnlyMissing := rbOnlyMissing.Checked;
         bQuickFaceFix := rbFaceGenPreset.Checked;
         bAll := rbAll.Checked;
+        sResolution := slResolutions[cbResolution.ItemIndex];
+        joConfig.S['Resolution'] := sResolution;
+        ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
 
         if bOnlyMissing then AddMessage('Mode: Only Missing')
         else if bQuickFaceFix then AddMessage('Mode: Quick Face Fix')
