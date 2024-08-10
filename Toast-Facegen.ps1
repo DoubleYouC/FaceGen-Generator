@@ -227,40 +227,47 @@ try {
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-
         #Write-Host "Argument is $scriptArgument"
-        $xEditProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-autoexit -nobuildrefs -FO4 -script:`"$pas`" -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
-        Start-Sleep -Seconds 5
+        $xEditProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-script:`"$pas`" -autoexit -autoload -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
+        CheckForFacegenPatch
 
-        if ($KeysToSend) {
-            Keypress -KeysToSend $KeysToSend
-        }
 
-        Start-Sleep -Seconds 15
+        # Start-Sleep -Seconds 5
 
-        while ($true) {
-            $title = New-Object System.Text.StringBuilder 256
-            [WindowHelper]::GetWindowText($xEditProcess.MainWindowHandle, $title, $title.Capacity) | Out-Null
-            $title = $title.ToString()
+        # if ($KeysToSend) {
+        #     Keypress -KeysToSend $KeysToSend
+        # }
 
-            if ($title -match "FO4Script") {
-                Write-Output "Title change detected (indicates script is complete) Closing..."
-                Start-Sleep 1
-                $xEditProcess.CloseMainWindow()
-                $xEditProcess.WaitForExit()
-                break
-            }
+        # Start-Sleep -Seconds 15
 
-            Start-Sleep -Milliseconds 1000
-        }
+        # while ($true) {
+        #     $title = New-Object System.Text.StringBuilder 256
+        #     [WindowHelper]::GetWindowText($xEditProcess.MainWindowHandle, $title, $title.Capacity) | Out-Null
+        #     $title = $title.ToString()
+
+        #     if ($title -match "FO4Script") {
+        #         Write-Output "Title change detected (indicates script is complete) Closing..."
+        #         Start-Sleep 1
+        #         $xEditProcess.CloseMainWindow()
+        #         $xEditProcess.WaitForExit()
+        #         break
+        #     }
+
+        #     Start-Sleep -Milliseconds 1000
+        # }
     }
-    CheckForFacegenPatch
+
     HandleSteamApiMismatch
     Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -Wait
     if ($script:steamapiWasReplaced) {
         Copy-Item $steamapiTempPath -Destination $steamapiPath
     }
 
+    #If temp path already exists, wipe it out.
+    if (Test-Path -Path "$script:tempfolder") {
+        Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
+        Write-Host "`"$script:tempfolder`" was deleted automatically"
+    }
     #Copy meshes to temp folder
     Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
     #Run Elric only on the meshes.
