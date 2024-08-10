@@ -40,6 +40,7 @@ $script:textures = Join-Path $script:data -ChildPath "Textures"
 $script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
 $script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
 $script:tempFaceGenTextures = Join-Path $script:tempfolder "Textures\Actors\Character\FaceCustomization"
+$script:FacesJson = Join-Path $scriptDir "Faces.json"
 
 $script:FacegenMeshes = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
 $script:FacegenTextures = Join-Path $script:data "Textures\Actors\Character\FaceCustomization"
@@ -117,15 +118,34 @@ function SaveSettings {
     Write-Host "`nSaved settings successfully.`n"
 }
 
+function LaunchXEdit {
+    # Launch xEdit
+    $script:xEditProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-script:`"$pas`" -autoexit -autoload -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
+    CheckForFacegenPatch
+}
+
 function CheckForFacegenPatch {
 
+    while ($true) {
+        if (Test-Path -Path $scriptDir\Faces.json) {
+            Write-Host "Faces.json found."
+            break
+        } else {
+            Write-Host "Waiting for Faces.json..."
+            Start-Sleep -Seconds 5
+        }
+    }
+
+    Start-Sleep 1
+    $script:xEditProcess.CloseMainWindow()
+    $script:xEditProcess.WaitForExit()
     while ($true) {
         if (Test-Path -Path $script:facegenpatch) {
             Write-Host "facegenpatch.esp found."
             break
         } else {
             Write-Host "Waiting for facegenpatch.esp..."
-            Start-Sleep -Seconds 10
+            Start-Sleep -Seconds 5
         }
     }
 }
@@ -210,10 +230,7 @@ try {
     $fo4EditExe = GetOrSelectxEditPath
     SaveSettings
 
-    $script = Split-Path -Path $fo4EditExe -Parent
-
-    $pas = Join-Path -Path $script -ChildPath "Edit Scripts\FaceGen Generator.pas"
-    #$facegenfilterscript = Join-Path -Path $scriptDir -ChildPath "Elric\FaceGen.cs"
+    $pas = Join-Path -Path $scriptDir -ChildPath "Edit Scripts\FaceGen Generator.pas"
 
     # Debug output to confirm the $pas path
     Write-Host "Path to .pas file: $pas"
@@ -221,40 +238,25 @@ try {
     # Check if the .pas file exists before trying to run the process
     if (!(Test-Path -Path $pas)) {
         Write-Host "ERROR: The .pas file does not exist at the specified path: $pas"
+        Write-Host "VEFS will now close."
+        pause
         exit
     }
     $esp = [System.IO.Path]::GetFileName($script:facegenpatch)
     $script:elrichdir = Split-Path -Path $script:Elrich -Parent
+
+    # Delete previous Faces.json
+    if (Test-Path -Path $script:FacesJson) {
+        Remove-Item -Path $script:FacesJson
+        Write-Host "$script:FacesJson was deleted automatically"
+    }
     # Start the process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
-        #Write-Host "Argument is $scriptArgument"
-        $xEditProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-script:`"$pas`" -autoexit -autoload -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
-        CheckForFacegenPatch
-
-
-        # Start-Sleep -Seconds 5
-
-        # if ($KeysToSend) {
-        #     Keypress -KeysToSend $KeysToSend
-        # }
-
-        # Start-Sleep -Seconds 15
-
-        # while ($true) {
-        #     $title = New-Object System.Text.StringBuilder 256
-        #     [WindowHelper]::GetWindowText($xEditProcess.MainWindowHandle, $title, $title.Capacity) | Out-Null
-        #     $title = $title.ToString()
-
-        #     if ($title -match "FO4Script") {
-        #         Write-Output "Title change detected (indicates script is complete) Closing..."
-        #         Start-Sleep 1
-        #         $xEditProcess.CloseMainWindow()
-        #         $xEditProcess.WaitForExit()
-        #         break
-        #     }
-
-        #     Start-Sleep -Milliseconds 1000
-        # }
+        LaunchXEdit
+    } else {
+        Remove-Item -LiteralPath $script:facegenpatch
+        Write-Host "`"$script:facegenpatch`" was deleted."
+        LaunchXEdit
     }
 
     HandleSteamApiMismatch
@@ -327,6 +329,9 @@ try {
     #Create textures archive
     Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=(?i)textures\\actors\\character\\facecustomization\\" -Wait
 
+    #Quick Auto Clean
+    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -Wait
+
     # Check if the -clean argument was passed
     if ($args -contains "-clean") {
         # Automatically delete loose files without prompting
@@ -366,9 +371,6 @@ try {
             Write-Host "`"$script:tempfolder`" was NOT deleted."
         }
     }
-
-    #Quick Auto Clean
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -Wait
 
     # Check if the -zip argument was passed
     if ($args -contains "-zip") {
