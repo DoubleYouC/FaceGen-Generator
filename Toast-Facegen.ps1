@@ -10,22 +10,35 @@ $jsonFilePath = Join-Path -Path $scriptDir -ChildPath "config.json"
 # Variable to store location data
 $script:configfile  = $null
 
+function Show-OpenFileDialog {
+    param (
+        [string]$title,
+        [string]$filter,
+        [string]$initialDirectory
+    )
+    $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
+    $openFileDialog.Reset()
+    $openFileDialog.Title = $title
+    $openFileDialog.Filter = $filter
+    $openFileDialog.InitialDirectory = $initialDirectory
+    $openFileDialog.ShowDialog() | Out-Null
+    return $openFileDialog.FileName
+}
+
+# Get Game Directory
 $script:regkey = 'HKLM:\Software\Wow6432Node\Bethesda Softworks\Fallout4'
+$script:fo4regPath = $scriptDir #set to script dir in case registry check fails
+$script:fo4regPath = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
 function GetOrSelectGamePath {
-    try {
-        $script:fo4 = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
-    } catch {
-        $openFileDialogFo4 = New-Object System.Windows.Forms.OpenFileDialog
-        $openFileDialogFo4.Title = "Select Fallout4.exe"
-        $openFileDialogFo4.Filter = "Fallout 4|Fallout4.exe"
-        $openFileDialogFo4.InitialDirectory = $scriptDir
-        if ($openFileDialogFo4.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $script:fo4 = Split-Path -Path $openFileDialogFo4.FileName -Parent
-        } else {
-            Write-Host "`nERROR: Fallout 4 directory not found.`n"
-            pause
-            exit
-        }
+    Write-Host "Browse and select Fallout 4 location."
+    $OpenFo4FileName = Show-OpenFileDialog -title "Select Fallout4.exe" -filter "Fallout 4|Fallout4.exe" -initialDirectory $script:fo4regPath
+
+    if ($OpenFo4FileName) {
+        $script:fo4 = Split-Path -Path $OpenFo4FileName -Parent
+    } else {
+        Write-Host "`nERROR: Fallout 4 directory not found.`n"
+        pause
+        exit
     }
 }
 if (Test-Path $jsonFilePath) {
@@ -42,6 +55,7 @@ if (Test-Path $jsonFilePath) {
     Write-Host "Fallout 4 path: $script:fo4"
 }
 
+# Set needed paths
 $script:data = Join-Path $fo4 "data"
 $script:CK = Join-Path $fo4 "Creationkit.exe"
 $script:Archive2 = Join-Path $script:fo4 "tools\archive2\archive2.exe"
@@ -60,9 +74,10 @@ $script:FacesJson = Join-Path $scriptDir "Faces.json"
 
 $script:FacegenMeshes = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
 $script:FacegenTextures = Join-Path $script:data "Textures\Actors\Character\FaceCustomization"
-
 $meshesarchive = Join-Path $script:data "FaceGenPatch - Main.ba2"
 $texturesarchive = Join-Path $script:data "FaceGenPatch - Textures.ba2"
+
+#Set arguments for powershell file.
 
 if ($args -contains "-zip") {
     Write-Output "-zip has been passed. All files will be compressed into a .zip file."
@@ -103,12 +118,10 @@ function GetOrSelectxEditPath {
 
 
     # If JSON file doesn't exist or executable is not found, prompt the user to select it
-    $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
-    $openFileDialog.Title = "Select FO4Edit or xEdit executable"
-    $openFileDialog.Filter = "FO4Edit or xEdit|fo4edit.exe;fo4edit64.exe;xedit.exe;xedit64.exe"
-    $openFileDialog.InitialDirectory = $script:xEditPath
-    if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-        $selectedExe = $openFileDialog.FileName
+    $OpenXEditFileName = Show-OpenFileDialog -title "Select FO4Edit or xEdit executable" -filter "FO4Edit or xEdit|fo4edit.exe;fo4edit64.exe;xedit.exe;xedit64.exe" -initialDirectory $script:xEditPath
+
+    if ($OpenXEditFileName) {
+        $selectedExe = $OpenXEditFileName
         $script:xEditPath = Split-Path -Path $selectedExe -Parent
         $script:xEditExecutable = [System.IO.Path]::GetFileName($selectedExe)
 
@@ -134,7 +147,7 @@ function SaveSettings {
 
 function LaunchXEdit {
     # Launch xEdit
-    $script:xEditProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-script:`"$pas`" -autoexit -autoload -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
+    $script:xEditProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-script:`"$pas`" -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
     CheckForFacegenPatch
 }
 
@@ -147,6 +160,11 @@ function CheckForFacegenPatch {
         } else {
             Write-Host "Waiting for Faces.json..."
             Start-Sleep -Seconds 5
+            if ($script:xEditProcess.HasExited){
+                Write-Host "xEdit was terminated prematurely. VEFS will now close."
+                Pause
+                Exit
+            }
         }
     }
 
@@ -191,7 +209,7 @@ function HandleSteamApiMismatch {
     }
 }
 
-# Define the full registry key path
+<# # Define the full registry key path
 $regkeydir = "Registry::HKEY_CLASSES_ROOT\modl\shell\open\command"
 
 # Retrieve the '(Default)' value from the registry key
@@ -206,7 +224,7 @@ if ($registryValue -and $registryValue."(Default)") {
     Write-Host "MO2 Install Path: $mo2dir"
 } else {
     Write-Host "Could not find MO2 installation path."
-}
+} #>
 
 if (-not ('WindowHelper' -as [Type])) {
     Add-Type -TypeDefinition @"
@@ -293,25 +311,14 @@ try {
     }
 
     HandleSteamApiMismatch
-    Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -Wait
+    $process = Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -PassThru
+    if (!($process.HasExited)) {
+        Wait-Process -InputObject $process
+    }
     if ($script:steamapiWasReplaced) {
         Copy-Item $steamapiTempPath -Destination $steamapiPath
     }
 
-    #If temp path already exists, wipe it out.
-    if (Test-Path -Path "$script:tempfolder") {
-        Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
-        Write-Host "`"$script:tempfolder`" was deleted automatically"
-    }
-    #Copy meshes to temp folder
-    Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
-    #Run Elric only on the meshes.
-    Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
-    -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
-    -Wait
-
-    #Create meshes archive
-    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -Wait
 
     #####################################################################################################
     # This Code was to convert textures, but perchik is now handling that inside the Creation Kit itself.
@@ -360,11 +367,38 @@ try {
     #####################################################################################################
 
     #Create textures archive
-    Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=(?i)textures\\actors\\character\\facecustomization\\" -Wait
+    $textureArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=(?i)textures\\actors\\character\\facecustomization\\" -PassThru
+
+    #If temp path already exists, wipe it out.
+    if (Test-Path -Path "$script:tempfolder") {
+        Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
+        Write-Host "`"$script:tempfolder`" was deleted automatically"
+    }
+    #Copy meshes to temp folder
+    Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
+    #Run Elric only on the meshes.
+    $ElricProcess = Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
+    -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
+    -PassThru
+    if (!($ElricProcess.HasExited)) {
+        Wait-Process -InputObject $ElricProcess
+    }
+
+    #Create meshes archive
+    $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
 
     #Quick Auto Clean
-    Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -Wait
+    $qac = Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -PassThru
+    if (!($qac.HasExited)) {
+        Wait-Process -InputObject $qac
+    }
 
+    if (!($meshesArchiveProcess.HasExited)) {
+        Wait-Process -InputObject $meshesArchiveProcess
+    }
+    if (!($textureArchiveProcess.HasExited)) {
+        Wait-Process -InputObject $textureArchiveProcess
+    }
     # Check if the -clean argument was passed
     if ($args -contains "-clean") {
         # Automatically delete loose files without prompting
