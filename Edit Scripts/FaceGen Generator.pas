@@ -546,7 +546,7 @@ begin
             recordId := GetFileName(r) + #9 + ShortName(r);
             idx := slNpc.IndexOf(recordId);
             if idx > -1 then continue;
-            race := LinksTo(ElementByPath(r, 'RNAM'));
+            race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
             idx := tlRace.IndexOf(race);
             if idx = -1 then continue;
             if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
