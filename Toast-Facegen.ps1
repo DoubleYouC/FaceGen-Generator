@@ -10,6 +10,10 @@ $jsonFilePath = Join-Path -Path $scriptDir -ChildPath "config.json"
 # Variable to store location data
 $script:configfile  = $null
 
+
+$script:regkey = 'HKLM:\Software\Wow6432Node\Bethesda Softworks\Fallout4'
+$script:fo4regPath = $scriptDir #set to script dir in case registry check fails
+
 function Show-OpenFileDialog {
     param (
         [string]$title,
@@ -25,11 +29,8 @@ function Show-OpenFileDialog {
     return $openFileDialog.FileName
 }
 
-# Get Game Directory
-$script:regkey = 'HKLM:\Software\Wow6432Node\Bethesda Softworks\Fallout4'
-$script:fo4regPath = $scriptDir #set to script dir in case registry check fails
-$script:fo4regPath = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
 function GetOrSelectGamePath {
+    # Get Game Directory
     Write-Host "Browse and select Fallout 4 location."
     $OpenFo4FileName = Show-OpenFileDialog -title "Select Fallout4.exe" -filter "Fallout 4|Fallout4.exe" -initialDirectory $script:fo4regPath
 
@@ -41,19 +42,36 @@ function GetOrSelectGamePath {
         exit
     }
 }
-if (Test-Path $jsonFilePath) {
-    $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
-    $script:fo4 = [string]$script:configfile.Fallout4Directory
-    if (Test-Path $script:fo4) {
-        Write-Host "Fallout 4 path: $script:fo4"
+
+try {
+    try {
+        $script:fo4regPath = Get-ItemPropertyValue -Path "$script:regkey" -Name 'installed path' -ErrorAction Stop
+    } catch {
+        Write-Host "Fallout 4 registry key path location is missing at $script:regkey"
+    }
+
+    if (Test-Path $jsonFilePath) {
+        $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
+        $script:fo4 = [string]$script:configfile.Fallout4Directory
+        if (Test-Path $script:fo4) {
+            Write-Host "Fallout 4 path: $script:fo4"
+        } else {
+            GetOrSelectGamePath
+            Write-Host "Fallout 4 path: $script:fo4"
+        }
     } else {
         GetOrSelectGamePath
         Write-Host "Fallout 4 path: $script:fo4"
     }
-} else {
-    GetOrSelectGamePath
-    Write-Host "Fallout 4 path: $script:fo4"
 }
+catch {
+    Write-Host "`nAn unexpected error occurred.`n"
+    Write-Error $_
+    pause
+    Write-Output "Done"
+    exit
+}
+
 
 # Set needed paths
 $script:data = Join-Path $fo4 "data"
@@ -63,6 +81,8 @@ $script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
 $script:ElrichDir = Join-Path $script:fo4 "tools\elric"
 $script:Elrich = Join-Path $script:fo4 "tools\elric\elrich.exe"
 $script:Texconv = Join-Path $script:fo4 "tools\elric\texconv.exe"
+$script:winhttp = Join-Path $script:fo4 "winhttp.dll"
+
 $script:xEditPath = $scriptDir #set here as default for the file open dialog
 $script:xEditExecutable = $null
 $script:meshes = Join-Path $scriptDir "Temp\Meshes"
@@ -264,7 +284,24 @@ if (-not ('WindowHelper' -as [Type])) {
 # Main script execution
 try {
     $fo4EditExe = GetOrSelectxEditPath
+    $fo4EditProcessName = [System.IO.Path]::GetFileNameWithoutExtension($fo4EditExe)
     SaveSettings
+
+    $fo4EditVer = (Get-Item $fo4EditExe).VersionInfo.FileVersionRaw
+    $ckpeVer = (Get-Item $script:winhttp).VersionInfo.FileVersionRaw
+    $ckVer = (Get-Item $script:CK).VersionInfo.FileVersionRaw
+
+    if ($fo4EditVer -lt [Version]'4.1.5') {
+        Write-Host "VEFS requires xEdit 4.1.5 or newer. Installed version is $fo4EditVer"
+    } else {
+        Write-Host "xEdit is version $fo4EditVer"
+    }
+    if ($ckpeVer -lt [Version]'0.4.0.116') {
+        Write-Host "VEFS requires CKPE v0.4-b116 or newer. Installed version is $ckpeVer"
+    } else {
+        Write-Host "Creation Kit Platform Extended is version $ckpeVer"
+    }
+    Write-Host "Creation Kit version is $ckVer"
 
     $pas = Join-Path -Path $scriptDir -ChildPath "Edit Scripts\FaceGen Generator.pas"
 
@@ -314,6 +351,12 @@ try {
     $process = Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -PassThru
     if (!($process.HasExited)) {
         Wait-Process -InputObject $process
+    }
+    try {
+        Get-Process -Name "CreationKit" -ErrorAction Stop
+        Read-Host "Press Any Key after Creation Kit has closed"
+    } catch {
+        Write-Host "Creation Kit has exited."
     }
     if ($script:steamapiWasReplaced) {
         Copy-Item $steamapiTempPath -Destination $steamapiPath
@@ -383,6 +426,12 @@ try {
     if (!($ElricProcess.HasExited)) {
         Wait-Process -InputObject $ElricProcess
     }
+    try {
+        Get-Process -Name "Elrich" -ErrorAction Stop
+        Read-Host "Press Any Key after Elrich has closed"
+    } catch {
+        Write-Host "Elric has exited."
+    }
 
     #Create meshes archive
     $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
@@ -392,12 +441,24 @@ try {
     if (!($qac.HasExited)) {
         Wait-Process -InputObject $qac
     }
+    try {
+        Get-Process -Name $fo4EditProcessName -ErrorAction Stop
+        Read-Host "Press Any Key after FO4Edit has closed"
+    } catch {
+        Write-Host "FO4Edit has exited."
+    }
 
     if (!($meshesArchiveProcess.HasExited)) {
         Wait-Process -InputObject $meshesArchiveProcess
     }
     if (!($textureArchiveProcess.HasExited)) {
         Wait-Process -InputObject $textureArchiveProcess
+    }
+    try {
+        Get-Process -Name "Archive2" -ErrorAction Stop
+        Read-Host "Press Any Key after Archive2 has closed"
+    } catch {
+        Write-Host "Archive2 has exited."
     }
     # Check if the -clean argument was passed
     if ($args -contains "-clean") {
