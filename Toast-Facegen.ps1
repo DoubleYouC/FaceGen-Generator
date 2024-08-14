@@ -236,7 +236,7 @@ function SteamAppIdTxt {
     )
     #377160 Fallout 4
     #1946160 Creation Kit
-    $appid | Out-File -FilePath "$script:steamappidtxt" -Force
+    $appid | Out-File -FilePath "$script:steamappidtxtfile" -Force
 }
 
 <# # Define the full registry key path
