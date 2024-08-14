@@ -9,12 +9,16 @@ unit FaceGen;
 
 var
     iPluginFile: IInterface;
-    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bSteamAppIDTxtExists, bNeedPlugin: Boolean;
+    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
     slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
-    joFaces, joConfig: TJsonObject;
+    joFaces, joConfig, joRules, joUserRules: TJsonObject;
+    uiScale: integer;
+
+    lvRules: TListView;
+    btnRuleOk, btnRuleCancel: TButton;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -32,6 +36,13 @@ var
 begin
     CreateObjects;
     bNeedPlugin := false;
+
+    //Get scaling
+    uiScale := Screen.PixelsPerInch * 100 / 96;
+
+    //Used to tell the Rule Editor whether or not to save changes.
+    bSaveUserRules := false;
+    bUserRulesChanged := false;
 
     bBatchMode := CheckLaunchArguments;
 
@@ -78,6 +89,9 @@ begin
     slSpecularTextures.Free;
     slTintTextures.Free;
     slResolutions.Free;
+
+    joRules.Free;
+    joUserRules.Free;
 
     joConfig.S['NeedPlugin'] := bNeedPlugin;
     joConfig.SaveToFile(sVEFSDir + '\config.json', False, TEncoding.UTF8, True);
@@ -136,6 +150,8 @@ begin
 
     joFaces := TJsonObject.Create;
     joConfig := TJsonObject.Create;
+    joRules := TJsonObject.Create;
+    joUserRules := TJsonObject.Create;
 end;
 
 // ----------------------------------------------------
@@ -148,10 +164,9 @@ function MainMenuForm: Boolean;
 }
 var
     frm: TForm;
-    btnStart, btnCancel: TButton;
+    btnStart, btnCancel, btnRuleEditor: TButton;
     pnl: TPanel;
     gbOptions: TGroupBox;
-    uiScale: integer;
     picVefs: TPicture;
     fImage: TImage;
     cbResolution: TComboBox;
@@ -171,7 +186,7 @@ begin
     try
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
         frm.Width := 600;
-        frm.Height := 430;
+        frm.Height := 450;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
@@ -260,6 +275,14 @@ begin
         btnCancel.ModalResult := mrCancel;
         btnCancel.Top := btnStart.Top;
 
+        // btnRuleEditor := TButton.Create(gbOptions);
+        // btnRuleEditor.Parent := gbOptions;
+        // btnRuleEditor.Caption := 'Rule Editor';
+        // btnRuleEditor.OnClick := RuleEditor;
+        // btnRuleEditor.Width := 100;
+        // btnRuleEditor.Left := 8;
+        // btnRuleEditor.Top := btnStart.Top;
+
         btnStart.Left := gbOptions.Width - btnStart.Width - btnCancel.Width - 16;
         btnCancel.Left := btnStart.Left + btnStart.Width + 8;
 
@@ -271,7 +294,6 @@ begin
         pnl.Height := 2;
 
         frm.ActiveControl := btnStart;
-        uiScale := Screen.PixelsPerInch * 100 / 96;
         frm.ScaleBy(uiScale, 100);
         frm.Font.Size := 8;
 
@@ -294,6 +316,351 @@ begin
 
     finally
         frm.Free;
+    end;
+end;
+
+function RuleEditor: Boolean;
+var
+    i: integer;
+    mnRules: TPopupMenu;
+    MenuItem: TMenuItem;
+    frm: TForm;
+begin
+    frm := TForm.Create(nil);
+    try
+        frm.Caption := 'Rule Editor';
+        frm.Width := 800;
+        frm.Height := 600;
+        frm.Position := poMainFormCenter;
+        frm.BorderStyle := bsSizeable;
+        frm.KeyPreview := True;
+        frm.OnClose := frmOptionsFormClose;
+        frm.OnKeyDown := FormKeyDown;
+        frm.OnResize := frmResize;
+
+        lvRules := TListView.Create(frm);
+        lvRules.Parent := frm;
+
+        lvRules.Top := 24;
+        lvRules.Width := frm.Width - 36;
+        lvRules.Left := (frm.Width - lvRules.Width)/2;
+        lvRules.Height := frm.Height - 120;
+        lvRules.ReadOnly := True;
+        lvRules.ViewStyle := vsReport;
+        lvRules.RowSelect := True;
+        lvRules.DoubleBuffered := True;
+        lvRules.Columns.Add.Caption := 'NPC or Plugin';
+        lvRules.Columns[0].Width := 160;
+        lvRules.Columns.Add.Caption := 'Only NPCs Matching';
+        lvRules.Columns[1].Width := 160;
+        lvRules.Columns.Add.Caption := 'Preset Add';
+        lvRules.Columns[2].Width := 110;
+        lvRules.Columns.Add.Caption := 'Preset Remove';
+        lvRules.Columns[3].Width := 110;
+        lvRules.Columns.Add.Caption := 'Missing';
+        lvRules.Columns[4].Width := 110;
+        lvRules.Columns.Add.Caption := 'Always';
+        lvRules.Columns[5].Width := 110;
+        lvRules.OwnerData := True;
+        lvRules.OnData := lvRulesData;
+        lvRules.OnDblClick := lvRulesDblClick;
+        lvRules.Items.Count := joRules.Count;
+        CreateLabel(frm, 16, lvRules.Top - 20, 'Rules');
+
+        mnRules := TPopupMenu.Create(frm);
+        lvRules.PopupMenu := mnRules;
+        MenuItem := TMenuItem.Create(mnRules);
+        MenuItem.Caption := 'Add';
+        MenuItem.OnClick := RulesMenuAddClick;
+        mnRules.Items.Add(MenuItem);
+        MenuItem := TMenuItem.Create(mnRules);
+        MenuItem.Caption := 'Delete';
+        MenuItem.OnClick := RulesMenuDeleteClick;
+        mnRules.Items.Add(MenuItem);
+        MenuItem := TMenuItem.Create(mnRules);
+        MenuItem.Caption := 'Edit';
+        MenuItem.OnClick := RulesMenuEditClick;
+        mnRules.Items.Add(MenuItem);
+
+        btnRuleOk := TButton.Create(frm);
+        btnRuleOk.Parent := frm;
+        btnRuleOk.Caption := 'OK';
+        btnRuleOk.ModalResult := mrOk;
+        btnRuleOk.Top := lvRules.Height + lvRules.Top + 8;
+
+        btnRuleCancel := TButton.Create(frm);
+        btnRuleCancel.Parent := frm;
+        btnRuleCancel.Caption := 'Cancel';
+        btnRuleCancel.ModalResult := mrCancel;
+        btnRuleCancel.Top := btnRuleOk.Top;
+
+        btnRuleOk.Left := (frm.Width - btnRuleOk.Width - btnRuleCancel.Width - 8)/2;
+        btnRuleCancel.Left := btnRuleOk.Left + btnRuleOk.Width + 8;
+
+        frm.ScaleBy(uiScale, 100);
+        frm.Font.Size := 8;
+
+        if frm.ShowModal <> mrOk then begin
+            Result := False;
+            Exit;
+        end
+        else Result := True;
+
+    finally
+        frm.Free;
+    end;
+end;
+
+function EditRuleForm(var key: string; var Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean): Boolean;
+var
+    frmRule: TForm;
+    pnl: TPanel;
+    btnOk, btnCancel: TButton;
+    edKey: TEdit;
+    chkExclusive, chkPresetAdd, chkPresetRemove, chkMissingOnly, chkEverything: TCheckBox;
+begin
+  frmRule := TForm.Create(nil);
+  try
+    frmRule.Caption := 'Rule';
+    frmRule.Width := 600;
+    frmRule.Height := 220;
+    frmRule.Position := poMainFormCenter;
+    frmRule.BorderStyle := bsDialog;
+    frmRule.KeyPreview := True;
+    frmRule.OnKeyDown := FormKeyDown;
+    frmRule.OnClose := frmRuleFormClose;
+
+    edKey := TEdit.Create(frmRule);
+    edKey.Parent := frmRule;
+    edKey.Name := 'edKey';
+    edKey.Left := 120;
+    edKey.Top := 12;
+    edKey.Width := frmRule.Width - 140;
+    CreateLabel(frmRule, 16, edKey.Top + 4, 'NPC or Plugin');
+
+    chkExclusive := TCheckBox.Create(frmRule);
+    chkExclusive.Parent := frmRule;
+    chkExclusive.Left := 16;
+    chkExclusive.Top := edKey.Top + 48;
+    chkExclusive.Width := 150;
+    chkExclusive.Caption := 'Only NPCs Matching';
+
+    chkPresetAdd := TCheckBox.Create(frmRule);
+    chkPresetAdd.Parent := frmRule;
+    chkPresetAdd.Left := chkExclusive.Width + chkExclusive.Left + 16;
+    chkPresetAdd.Top := edKey.Top + 48;
+    chkPresetAdd.Width := 200;
+    chkPresetAdd.Caption := 'Add Chargen Preset Flag';
+
+    chkPresetRemove := TCheckBox.Create(frmRule);
+    chkPresetRemove.Parent := frmRule;
+    chkPresetRemove.Left := chkPresetAdd.Left;
+    chkPresetRemove.Top := chkPresetAdd.Top + 32;
+    chkPresetRemove.Width := 200;
+    chkPresetRemove.Caption := 'Remove Chargen Preset Flag';
+
+    chkMissingOnly := TCheckBox.Create(frmRule);
+    chkMissingOnly.Parent := frmRule;
+    chkMissingOnly.Left := chkPresetRemove.Width + chkPresetRemove.Left + 16;
+    chkMissingOnly.Top := edKey.Top + 48;
+    chkMissingOnly.Width := 200;
+    chkMissingOnly.Caption := 'Generate FaceGen if Missing';
+
+    chkEverything := TCheckBox.Create(frmRule);
+    chkEverything.Parent := frmRule;
+    chkEverything.Left := chkMissingOnly.Left;
+    chkEverything.Top := chkMissingOnly.Top + 32;
+    chkEverything.Width := 200;
+    chkEverything.Caption := 'Generate FaceGen Always';
+
+    btnOk := TButton.Create(frmRule);
+    btnOk.Parent := frmRule;
+    btnOk.Caption := 'OK';
+    btnOk.ModalResult := mrOk;
+    btnOk.Left := frmRule.Width - 176;
+    btnOk.Top := frmRule.Height - 82;
+
+    btnCancel := TButton.Create(frmRule);
+    btnCancel.Parent := frmRule;
+    btnCancel.Caption := 'Cancel';
+    btnCancel.ModalResult := mrCancel;
+    btnCancel.Left := btnOk.Left + btnOk.Width + 8;
+    btnCancel.Top := btnOk.Top;
+
+    pnl := TPanel.Create(frmRule);
+    pnl.Parent := frmRule;
+    pnl.Left := 8;
+    pnl.Top := btnOk.Top - 12;
+    pnl.Width := frmRule.Width - 20;
+    pnl.Height := 2;
+
+    edKey.Text := key;
+    chkExclusive.Checked := Exclusive;
+    chkPresetAdd.Checked := PresetAdd;
+    chkPresetRemove.Checked := PresetRemove;
+    chkMissingOnly.Checked := MissingOnly;
+    chkEverything.Checked := Everything;
+
+    frmRule.ScaleBy(uiScale, 100);
+    frmRule.Font.Size := 8;
+
+    if frmRule.ShowModal <> mrOk then Exit;
+
+    key := edKey.Text;
+    Exclusive := chkExclusive.Checked;
+    PresetAdd := chkPresetAdd.Checked;
+    PresetRemove := chkPresetRemove.Checked;
+    MissingOnly := chkMissingOnly.Checked;
+    Everything := chkEverything.Checked;
+
+    Result := True;
+  finally
+    frmRule.Free;
+  end;
+end;
+
+procedure lvRulesData(Sender: TObject; Item: TListItem);
+{
+    Populate lvRules
+}
+var
+    i: integer;
+    key: string;
+begin
+    key := joRules.Names[Item.Index];
+    Item.Caption := key;
+    Item.SubItems.Add(joRules.O[key].S['Exclusive']);
+    Item.SubItems.Add(joRules.O[key].S['Preset Add']);
+    Item.SubItems.Add(joRules.O[key].S['Preset Remove']);
+    Item.SubItems.Add(joRules.O[key].S['Missing Only']);
+    Item.SubItems.Add(joRules.O[key].S['Everything']);
+end;
+
+procedure lvRulesDblClick(Sender: TObject);
+{
+    Double click to edit rule
+}
+begin
+    RulesMenuEditClick(nil);
+end;
+
+procedure RulesMenuAddClick(Sender: TObject);
+{
+    Add rule
+}
+var
+    idx: integer;
+    key: string;
+    Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean;
+begin
+    key := '';
+    Exclusive := false;
+    PresetAdd := false;
+    PresetRemove := false;
+    MissingOnly := false;
+    Everything := false;
+
+    if not EditRuleForm(key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
+
+    joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
+    joRules.O[key].S['Preset Add'] := BoolToStr(PresetAdd);
+    joRules.O[key].S['Preset Remove'] := BoolToStr(PresetRemove);
+    joRules.O[key].S['Missing Only'] := BoolToStr(MissingOnly);
+    joRules.O[key].S['Everything'] := BoolToStr(Everything);
+
+    joUserRules.O[key].Assign(joRules.O[key]);
+    bUserRulesChanged := True;
+
+    lvRules.Items.Count := joRules.Count;
+    lvRules.Refresh;
+end;
+
+procedure RulesMenuEditClick(Sender: TObject);
+{
+    Edit rule
+}
+var
+    idx: integer;
+    key: string;
+    Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean;
+begin
+    if not Assigned(lvRules.Selected) then Exit;
+    idx := lvRules.Selected.Index;
+
+    key := joRules.Names[idx];
+    Exclusive := StrToBool(joRules.O[key].S['Exclusive']);
+    PresetAdd := joRules.O[key].S['Preset Add'];
+    PresetRemove := joRules.O[key].S['Preset Remove'];
+    MissingOnly := joRules.O[key].S['Missing Only'];
+    Everything := joRules.O[key].S['Everything'];
+
+    if not EditRuleForm(key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
+
+    joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
+    joRules.O[key].S['Preset Add'] := BoolToStr(PresetAdd);
+    joRules.O[key].S['Preset Remove'] := BoolToStr(PresetRemove);
+    joRules.O[key].S['Missing Only'] := BoolToStr(MissingOnly);
+    joRules.O[key].S['Everything'] := BoolToStr(Everything);
+
+    joUserRules.O[key].Assign(joRules.O[key]);
+    bUserRulesChanged := True;
+
+    lvRules.Items.Count := joRules.Count;
+    lvRules.Refresh;
+end;
+
+procedure RulesMenuDeleteClick(Sender: TObject);
+{
+    Delete rule
+}
+var
+    idx, uidx: integer;
+    key: string;
+begin
+    if not Assigned(lvRules.Selected) then Exit;
+    idx := lvRules.Selected.Index;
+    key := joRules.Names[idx];
+    joRules.Delete(idx);
+    uidx := joUserRules.IndexOf(key);
+    if uidx > -1 then begin
+        joUserRules.Delete(uidx);
+        bUserRulesChanged := True;
+    end;
+    lvRules.Items.Count := joRules.Count;
+    lvRules.Refresh;
+end;
+
+procedure frmRuleFormClose(Sender: TObject; var Action: TCloseAction);
+{
+    Close rule edit menu handler.
+}
+begin
+    if TForm(Sender).ModalResult <> mrOk then Exit;
+    if TEdit(TForm(Sender).FindComponent('edKey')).Text = '' then begin
+        MessageDlg('ID must not be empty.', mtInformation, [mbOk], 0);
+        Action := caNone;
+    end;
+end;
+
+procedure frmResize(Sender: TObject);
+{
+    Handle resizing of elements in the rule menu.
+}
+var
+    frm: TForm;
+begin
+    try
+        frm := TForm(Sender);
+        lvRules.Width := frm.Width - 36;
+        lvRules.Left := (frm.Width - lvRules.Width)/2;
+        lvRules.Height := frm.Height - 140;
+
+        btnRuleOk.Top := lvRules.Height + lvRules.Top + 8;
+        btnRuleCancel.Top := btnRuleOk.Top;
+        btnRuleOk.Left := (frm.Width - btnRuleOk.Width - btnRuleCancel.Width - 8)/2;
+        btnRuleCancel.Left := btnRuleOk.Left + btnRuleOk.Width + 8;
+    except
+        frm := TForm(Sender);
     end;
 end;
 
@@ -346,13 +713,10 @@ begin
         sCKFixesINI := GamePath() + 'CreationKitPlatformExtended.ini';
     end
     else begin
-        MessageDlg('Please install Creation Kit Platform Extended or Creation Kit Fixes by perchik71 before continuing.', mtError, [mbOk], 0);
+        MessageDlg('Please install Creation Kit Platform Extended by perchik71 before continuing.', mtError, [mbOk], 0);
         Result := False;
         Exit;
     end;
-
-    //Check for the steam_appid.txt file
-    if FileExists(GamePath() + 'steam_appid.txt') then bSteamAppIDTxtExists := True;
 
     Result := True;
 end;
@@ -1161,6 +1525,14 @@ function StrToBool(str: string): boolean;
 }
 begin
     if (LowerCase(str) = 'true') or (str = '1') then Result := True else Result := False;
+end;
+
+function BoolToStr(b: boolean): string;
+{
+    Given a boolean, return a string.
+}
+begin
+    if b then Result := 'true' else Result := 'false';
 end;
 
 end.
