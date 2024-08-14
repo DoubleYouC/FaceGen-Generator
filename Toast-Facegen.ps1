@@ -75,6 +75,7 @@ catch {
 
 # Set needed paths
 $script:data = Join-Path $fo4 "data"
+$script:steamappidtxtfile = Join-Path $fo4 "steam_appid.txt"
 $script:CK = Join-Path $fo4 "Creationkit.exe"
 $script:Archive2 = Join-Path $script:fo4 "tools\archive2\archive2.exe"
 $script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
@@ -85,7 +86,7 @@ $script:winhttp = Join-Path $script:fo4 "winhttp.dll"
 
 $script:xEditPath = $scriptDir #set here as default for the file open dialog
 $script:xEditExecutable = $null
-$script:meshes = Join-Path $scriptDir "Temp\Meshes"
+$script:meshes = Join-Path $script:data -ChildPath "Meshes"
 $script:textures = Join-Path $script:data -ChildPath "Textures"
 $script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
 $script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
@@ -229,6 +230,15 @@ function HandleSteamApiMismatch {
     }
 }
 
+function SteamAppIdTxt {
+    param (
+        [string]$appid
+    )
+    #377160 Fallout 4
+    #1946160 Creation Kit
+    $appid | Out-File -FilePath "$script:steamappidtxt" -Force
+}
+
 <# # Define the full registry key path
 $regkeydir = "Registry::HKEY_CLASSES_ROOT\modl\shell\open\command"
 
@@ -288,16 +298,22 @@ try {
     SaveSettings
 
     $fo4EditVer = (Get-Item $fo4EditExe).VersionInfo.FileVersionRaw
-    $ckpeVer = (Get-Item $script:winhttp).VersionInfo.FileVersionRaw
-    $ckVer = (Get-Item $script:CK).VersionInfo.FileVersionRaw
+
+    if (Test-Path -Path $script:winhttp) {
+        $ckpeVer = (Get-Item $script:winhttp).VersionInfo.FileVersionRaw
+    } else { Write-Error "Creation Kit Platform Extended is not installed." }
+
+    if (Test-Path -Path $script:CK) {
+        $ckVer = (Get-Item $script:CK).VersionInfo.FileVersionRaw
+    } else { Write-Error "Creation Kit is not installed." }
 
     if ($fo4EditVer -lt [Version]'4.1.5') {
-        Write-Host "VEFS requires xEdit 4.1.5 or newer. Installed version is $fo4EditVer"
+        Write-Error "VEFS requires xEdit 4.1.5 or newer. Installed version is $fo4EditVer"
     } else {
         Write-Host "xEdit is version $fo4EditVer"
     }
     if ($ckpeVer -lt [Version]'0.4.0.116') {
-        Write-Host "VEFS requires CKPE v0.4-b116 or newer. Installed version is $ckpeVer"
+        Write-Error "VEFS requires CKPE v0.4-b116 or newer. Installed version is $ckpeVer"
     } else {
         Write-Host "Creation Kit Platform Extended is version $ckpeVer"
     }
@@ -307,6 +323,11 @@ try {
 
     # Debug output to confirm the $pas path
     Write-Host "Path to .pas file: $pas"
+
+    if (Test-Path -Path $script:steamappidtxtfile) {
+        $steamappidoriginal = Get-Content -Path $script:steamappidtxtfile
+        $bHasSteamAppIDTxt = $true
+    } else { $bHasSteamAppIDTxt = $false }
 
     # Check if the .pas file exists before trying to run the process
     if (!(Test-Path -Path $pas)) {
@@ -348,6 +369,7 @@ try {
     }
 
     HandleSteamApiMismatch
+    SteamAppIdTxt -appid 19946160
     $process = Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -PassThru
     if (!($process.HasExited)) {
         Wait-Process -InputObject $process
@@ -361,6 +383,9 @@ try {
     if ($script:steamapiWasReplaced) {
         Copy-Item $steamapiTempPath -Destination $steamapiPath
     }
+    if ($bHasSteamAppIDTxt) {
+        SteamAppIdTxt -appid $steamappidoriginal
+    } else { Remove-Item -Path $script:steamappidtxtfile }
 
 
     #####################################################################################################
@@ -418,23 +443,23 @@ try {
         Write-Host "`"$script:tempfolder`" was deleted automatically"
     }
     #Copy meshes to temp folder
-    Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
+    #Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
     #Run Elric only on the meshes.
-    $ElricProcess = Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
-    -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
-    -PassThru
-    if (!($ElricProcess.HasExited)) {
-        Wait-Process -InputObject $ElricProcess
-    }
-    try {
-        Get-Process -Name "Elrich" -ErrorAction Stop
-        Read-Host "Press Any Key after Elrich has closed"
-    } catch {
-        Write-Host "Elric has exited."
-    }
+    # $ElricProcess = Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
+    # -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
+    # -PassThru
+    # if (!($ElricProcess.HasExited)) {
+    #     Wait-Process -InputObject $ElricProcess
+    # }
+    # try {
+    #     Get-Process -Name "Elrich" -ErrorAction Stop
+    #     Read-Host "Press Any Key after Elrich has closed"
+    # } catch {
+    #     Write-Host "Elric has exited."
+    # }
 
     #Create meshes archive
-    $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
+    $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:data`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
 
     #Quick Auto Clean
     $qac = Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -PassThru
@@ -470,8 +495,8 @@ try {
         Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse -Force
         Write-Host "`"$script:FacegenTextures`" was deleted automatically by passing '-clean'"
 
-        Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
-        Write-Host "`"$script:tempfolder`" was deleted automatically by passing '-clean'"
+        # Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
+        # Write-Host "`"$script:tempfolder`" was deleted automatically by passing '-clean'"
     } else {
         # Existing code for user confirmation
         $wshell = New-Object -ComObject Wscript.Shell
@@ -491,13 +516,13 @@ try {
             Write-Host "`"$script:FacegenTextures`" was NOT deleted."
         }
 
-        $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
-        if ($decision -eq 6) {
-            Remove-Item -LiteralPath "$script:tempfolder" -Recurse
-            Write-Host "`"$script:tempfolder`" was deleted."
-        } else {
-            Write-Host "`"$script:tempfolder`" was NOT deleted."
-        }
+        # $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
+        # if ($decision -eq 6) {
+        #     Remove-Item -LiteralPath "$script:tempfolder" -Recurse
+        #     Write-Host "`"$script:tempfolder`" was deleted."
+        # } else {
+        #     Write-Host "`"$script:tempfolder`" was NOT deleted."
+        # }
     }
 
     # Check if the -zip argument was passed
