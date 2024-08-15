@@ -12,7 +12,7 @@ var
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions, slNPCRecords, slNPCPlugin: TStringList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig, joRules, joUserRules: TJsonObject;
     uiScale: integer;
@@ -95,6 +95,11 @@ begin
     slSpecularTextures.Free;
     slTintTextures.Free;
     slResolutions.Free;
+    slNPCMatches.Free;
+    slPresetAdd.Free;
+    slPresetRemove.Free;
+    slMissingOnly.Free;
+    slEverything.Free;
 
     joRules.Free;
     if bSaveUserRules and bUserRulesChanged then begin
@@ -152,7 +157,28 @@ begin
     slNPCRecords.Sorted := True;
     slNPCRecords.Duplicates := dupIgnore;
 
+    slNPCMatches := TStringList.Create;
+    slNPCMatches.Sorted := True;
+    slNPCMatches.Duplicates := dupIgnore;
+
+    slPresetAdd := TStringList.Create;
+    slPresetAdd.Sorted := True;
+    slPresetAdd.Duplicates := dupIgnore;
+
+    slPresetRemove := TStringList.Create;
+    slPresetRemove.Sorted := True;
+    slPresetRemove.Duplicates := dupIgnore;
+
+    slMissingOnly := TStringList.Create;
+    slMissingOnly.Sorted := True;
+    slMissingOnly.Duplicates := dupIgnore;
+
+    slEverything := TStringList.Create;
+    slEverything.Sorted := True;
+    slEverything.Duplicates := dupIgnore;
+
     slPluginFiles := TStringList.Create;
+
 
     slResolutions := TStringList.Create;
     slResolutions.Add('512 ');
@@ -848,6 +874,70 @@ begin
     SortJSONObjectKeys(joRules);
 end;
 
+procedure GetRules;
+{
+    Get NPC rules
+}
+var
+    c, i: integer;
+    key, ruleType: string;
+    Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: boolean;
+begin
+    for i := 0 to Pred(joRules.Count) do begin
+        key := joRules.Names[i];
+
+        //Exclusive
+        Exclusive := StrToBool(joRules.O[key].S['Exclusive']);
+        if Exclusive then begin
+            ruleType := joRules.O[key].S['Type'];
+            if ruleType = 'NPC' then slNPCMatches.Add(key)
+            else begin
+                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slNPCMatches.Add(joFaces.O[key].A['npcs'].S[c]);
+            end;
+        end;
+
+        //Preset Add
+        PresetAdd := StrToBool(joRules.O[key].S['Preset Add']);
+        if PresetAdd then begin
+            ruleType := joRules.O[key].S['Type'];
+            if ruleType = 'NPC' then slPresetAdd.Add(key)
+            else begin
+                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slPresetAdd.Add(joFaces.O[key].A['npcs'].S[c]);
+            end;
+        end;
+
+        //Preset Remove
+        PresetRemove := StrToBool(joRules.O[key].S['Preset Remove']);
+        if PresetRemove then begin
+            ruleType := joRules.O[key].S['Type'];
+            if ruleType = 'NPC' then slPresetRemove.Add(key)
+            else begin
+                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slPresetRemove.Add(joFaces.O[key].A['npcs'].S[c]);
+            end;
+        end;
+
+        //Missing Only
+        MissingOnly := StrToBool(joRules.O[key].S['Missing Only']);
+        if MissingOnly then begin
+            ruleType := joRules.O[key].S['Type'];
+            if ruleType = 'NPC' then slMissingOnly.Add(key)
+            else begin
+                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slMissingOnly.Add(joFaces.O[key].A['npcs'].S[c]);
+            end;
+        end;
+
+        //Everything
+        Everything := StrToBool(joRules.O[key].S['Missing Only']);
+        if Everything then begin
+            ruleType := joRules.O[key].S['Type'];
+            if ruleType = 'NPC' then slEverything.Add(key)
+            else begin
+                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slEverything.Add(joFaces.O[key].A['npcs'].S[c]);
+            end;
+        end;
+    end;
+end;
+
 procedure LoadRules(f: string);
 {
     Load LOD Rules and Material Swap Map JSON files
@@ -1048,6 +1138,7 @@ begin
             idx := slNpc.IndexOf(recordId);
             if idx > -1 then begin
                 bHadFaceGenNPC := true;
+                joFaces.O[filename].A['npcs'].Add(ShortName(r));
                 continue;
             end;
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
@@ -1066,6 +1157,7 @@ begin
             slNpc.Add(recordId);
             slNPCRecords.Add(ShortName(r));
             tlNpc.Add(r);
+            joFaces.O[filename].A['npcs'].Add(ShortName(r));
             bHadFaceGenNPC := true;
             sex := 'Male';
             if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
@@ -1198,12 +1290,14 @@ var
     slNpc: TStringList;
 begin
     slNpc := TStringList.Create;
-    for i:=0 to Pred(tlRace.Count) do begin
+    for i := 0 to Pred(tlRace.Count) do begin
         ProcessRace(ObjectToElement(tlRace[i]));
     end;
 
+    GetRules;
+
     count := 0;
-    for i:=0 to Pred(tlNpc.Count) do begin
+    for i := 0 to Pred(tlNpc.Count) do begin
         ProcessNPC(ObjectToElement(tlNpc[i]), slNpc, count);
     end;
     ListStringsInStringList(slNPC);
@@ -1216,16 +1310,48 @@ procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
     Process NPC
 }
 var
-    masterFile, relativeFormid: string;
+    masterFile, relativeFormid, sn: string;
     npc, masterRecord: IInterface;
+    bRemovePreset, bAddPreset, bMissingHere, bAllHere: Boolean;
+    idx: integer;
 begin
-    if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then Exit;
+    bRemovePreset := false;
+    bAddPreset := false;
+    bMissingHere := false;
+    bAllHere := false;
+
+    sn := ShortName(r);
+
+    //If any rule sets "Only NPCs Matching" then those NPCs are added to slNPCMatches. Skip this NPC if not in that list.
+    if ((slNPCMatches.Count > 0) and (slNPCMatches.IndexOf(sn) = -1)) then begin
+        AddMessage('Skipped ' + sn + ' because it was not in the list of matching NPCs.');
+        Exit;
+    end;
+
+    idx := slPresetRemove.IndexOf(sn);
+    if idx > -1 then bRemovePreset := true;
+
+    if not bRemovePreset and (GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1') then Exit;
     masterRecord := MasterOrSelf(r);
     masterFile := GetFileName(masterRecord);
 
-    if bOnlyMissing or bQuickFaceFix then begin
+    idx := slPresetAdd.IndexOf(sn);
+    if idx > -1 then bAddPreset := true;
+
+    idx := slMissingOnly.IndexOf(sn);
+    if idx > -1 then bMissingHere := true;
+
+    idx := slEverything.IndexOf(sn);
+    if idx > -1 then bAllHere := true;
+
+    if bMissingHere or bOnlyMissing or bQuickFaceFix then begin
         relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
-        if FaceGenExists(relativeFormid, masterFile) then Exit;
+        if not bAllHere then begin
+            if FaceGenExists(relativeFormid, masterFile) then Exit;
+        end;
+        if not bAddPreset then begin
+            if FaceGenExists(relativeFormid, masterFile) then Exit;
+        end;
     end;
 
 
@@ -1236,9 +1362,17 @@ begin
     slNpc.Add(ShortName(r));
     count := count + 1;
 
-    if not bQuickFaceFix then Exit;
-    SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
-    count := 0;
+    if bRemovePreset then SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '0');
+
+    if not bRemovePreset and bAddPreset then begin
+        SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
+        count := count - 1;
+    end;
+
+    if not bRemovePreset and bQuickFaceFix then begin
+        SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
+        count := 0;
+    end;
 
 end;
 
