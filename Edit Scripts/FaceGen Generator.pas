@@ -12,13 +12,15 @@ var
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions: TStringList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions, slNPCRecords, slNPCPlugin: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig, joRules, joUserRules: TJsonObject;
     uiScale: integer;
 
     lvRules: TListView;
     btnRuleOk, btnRuleCancel: TButton;
+    cbNPCPlugin: TComboBox;
+    cbkey: TComboBox;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -45,6 +47,8 @@ begin
     bUserRulesChanged := false;
 
     bBatchMode := CheckLaunchArguments;
+    FetchRules;
+    CollectRecords;
 
     if not bBatchMode then begin
 
@@ -62,7 +66,7 @@ begin
         end;
     end;
 
-    CollectRecords;
+
     ProcessRecords;
     CollectAssets;
 
@@ -83,6 +87,8 @@ begin
     slMaterials.Free;
     slAssets.Free;
     slPluginFiles.Free;
+    slNPCRecords.Free;
+    slNPCPlugin.Free;
 
     slDiffuseTextures.Free;
     slNormalTextures.Free;
@@ -91,8 +97,11 @@ begin
     slResolutions.Free;
 
     joRules.Free;
+    if bSaveUserRules and bUserRulesChanged then begin
+        AddMessage('Saving ' + IntToStr(joUserRules.Count) + ' user rule(s) to ' + sVEFSDir + '\Rules\UserRules.json');
+        joUserRules.SaveToFile(sVEFSDir + '\Rules\UserRules.json', False, TEncoding.UTF8, True);
+    end;
     joUserRules.Free;
-
     joConfig.S['NeedPlugin'] := bNeedPlugin;
     joConfig.SaveToFile(sVEFSDir + '\config.json', False, TEncoding.UTF8, True);
     joConfig.Free;
@@ -139,13 +148,21 @@ begin
     slAssets.Sorted := True;
     slAssets.Duplicates := dupIgnore;
 
+    slNPCRecords := TStringList.Create;
+    slNPCRecords.Sorted := True;
+    slNPCRecords.Duplicates := dupIgnore;
+
     slPluginFiles := TStringList.Create;
 
     slResolutions := TStringList.Create;
-    slResolutions.Add('512');
+    slResolutions.Add('512 ');
     slResolutions.Add('1024');
     slResolutions.Add('2048');
     slResolutions.Add('4096');
+
+    slNPCPlugin := TStringList.Create;
+    slNPCPlugin.Add('NPC');
+    slNPCPlugin.Add('Plugin');
 
 
     joFaces := TJsonObject.Create;
@@ -178,7 +195,6 @@ begin
         bCKPEExists := true;
         ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
         sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
-        if sResolution = '512 ' then sResolution := '512';
         if slResolutions.IndexOf(sResolution) = -1 then slResolutions.Add(sResolution);
     end
     else sResolution := '2048';
@@ -275,13 +291,13 @@ begin
         btnCancel.ModalResult := mrCancel;
         btnCancel.Top := btnStart.Top;
 
-        // btnRuleEditor := TButton.Create(gbOptions);
-        // btnRuleEditor.Parent := gbOptions;
-        // btnRuleEditor.Caption := 'Rule Editor';
-        // btnRuleEditor.OnClick := RuleEditor;
-        // btnRuleEditor.Width := 100;
-        // btnRuleEditor.Left := 8;
-        // btnRuleEditor.Top := btnStart.Top;
+        btnRuleEditor := TButton.Create(gbOptions);
+        btnRuleEditor.Parent := gbOptions;
+        btnRuleEditor.Caption := 'Rule Editor';
+        btnRuleEditor.OnClick := RuleEditor;
+        btnRuleEditor.Width := 100;
+        btnRuleEditor.Left := 8;
+        btnRuleEditor.Top := btnStart.Top;
 
         btnStart.Left := gbOptions.Width - btnStart.Width - btnCancel.Width - 16;
         btnCancel.Left := btnStart.Left + btnStart.Width + 8;
@@ -411,12 +427,11 @@ begin
     end;
 end;
 
-function EditRuleForm(var key: string; var Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean): Boolean;
+function EditRuleForm(var ruleType, key: string; var Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean): Boolean;
 var
     frmRule: TForm;
     pnl: TPanel;
     btnOk, btnCancel: TButton;
-    edKey: TEdit;
     chkExclusive, chkPresetAdd, chkPresetRemove, chkMissingOnly, chkEverything: TCheckBox;
 begin
   frmRule := TForm.Create(nil);
@@ -430,25 +445,33 @@ begin
     frmRule.OnKeyDown := FormKeyDown;
     frmRule.OnClose := frmRuleFormClose;
 
-    edKey := TEdit.Create(frmRule);
-    edKey.Parent := frmRule;
-    edKey.Name := 'edKey';
-    edKey.Left := 120;
-    edKey.Top := 12;
-    edKey.Width := frmRule.Width - 140;
-    CreateLabel(frmRule, 16, edKey.Top + 4, 'NPC or Plugin');
+    cbNPCPlugin := TComboBox.Create(frmRule);
+    cbNPCPlugin.Parent := frmRule;
+    cbNPCPlugin.Name := 'cbNPCPlugin';
+    cbNPCPlugin.Items.Assign(slNPCPlugin);
+    cbNPCPlugin.Left := 16;
+    cbNPCPlugin.Top := 12;
+    cbNPCPlugin.Width := 80;
+    cbNPCPlugin.OnChange := NPCPluginChange;
+
+    cbkey := TComboBox.Create(frmRule);
+    cbkey.Parent := frmRule;
+    cbkey.Name := 'cbkey';
+    cbkey.Left := 120;
+    cbkey.Top := 12;
+    cbkey.Width := frmRule.Width - 170;
 
     chkExclusive := TCheckBox.Create(frmRule);
     chkExclusive.Parent := frmRule;
     chkExclusive.Left := 16;
-    chkExclusive.Top := edKey.Top + 48;
+    chkExclusive.Top := cbkey.Top + 48;
     chkExclusive.Width := 150;
     chkExclusive.Caption := 'Only NPCs Matching';
 
     chkPresetAdd := TCheckBox.Create(frmRule);
     chkPresetAdd.Parent := frmRule;
     chkPresetAdd.Left := chkExclusive.Width + chkExclusive.Left + 16;
-    chkPresetAdd.Top := edKey.Top + 48;
+    chkPresetAdd.Top := cbkey.Top + 48;
     chkPresetAdd.Width := 200;
     chkPresetAdd.Caption := 'Add Chargen Preset Flag';
 
@@ -462,7 +485,7 @@ begin
     chkMissingOnly := TCheckBox.Create(frmRule);
     chkMissingOnly.Parent := frmRule;
     chkMissingOnly.Left := chkPresetRemove.Width + chkPresetRemove.Left + 16;
-    chkMissingOnly.Top := edKey.Top + 48;
+    chkMissingOnly.Top := cbkey.Top + 48;
     chkMissingOnly.Width := 200;
     chkMissingOnly.Caption := 'Generate FaceGen if Missing';
 
@@ -494,19 +517,37 @@ begin
     pnl.Width := frmRule.Width - 20;
     pnl.Height := 2;
 
-    edKey.Text := key;
+    cbNPCPlugin.ItemIndex := slNPCPlugin.IndexOf(ruleType);
+    if SameText(ruleType, 'NPC') then begin
+        cbkey.Items.Assign(slNPCRecords);
+        cbkey.ItemIndex := slNPCRecords.IndexOf(key);
+    end
+    else begin
+        cbkey.Items.Assign(slPluginFiles);
+        cbkey.ItemIndex := slPluginFiles.IndexOf(key);
+    end;
+
+    cbkey.Text := key;
     chkExclusive.Checked := Exclusive;
     chkPresetAdd.Checked := PresetAdd;
     chkPresetRemove.Checked := PresetRemove;
     chkMissingOnly.Checked := MissingOnly;
     chkEverything.Checked := Everything;
 
+    frmRule.ActiveControl := cbkey;
     frmRule.ScaleBy(uiScale, 100);
     frmRule.Font.Size := 8;
 
     if frmRule.ShowModal <> mrOk then Exit;
 
-    key := edKey.Text;
+    ruleType := slNPCPlugin[cbNPCPlugin.ItemIndex];
+    if SameText(ruleType, 'NPC') then begin
+        key := slNPCRecords[cbkey.ItemIndex];
+    end
+    else begin
+        key := slPluginFiles[cbkey.ItemIndex];
+    end;
+
     Exclusive := chkExclusive.Checked;
     PresetAdd := chkPresetAdd.Checked;
     PresetRemove := chkPresetRemove.Checked;
@@ -517,6 +558,19 @@ begin
   finally
     frmRule.Free;
   end;
+end;
+
+procedure NPCPluginChange(Sender: TObject);
+var
+    ruleType: string;
+begin
+    ruleType := slNPCPlugin[cbNPCPlugin.ItemIndex];
+    if SameText(ruleType, 'NPC') then begin
+        cbkey.Items.Assign(slNPCRecords);
+    end
+    else begin
+        cbkey.Items.Assign(slPluginFiles);
+    end;
 end;
 
 procedure lvRulesData(Sender: TObject; Item: TListItem);
@@ -550,18 +604,20 @@ procedure RulesMenuAddClick(Sender: TObject);
 }
 var
     idx: integer;
-    key: string;
+    key, ruleType: string;
     Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean;
 begin
     key := '';
+    ruleType := 'Plugin';
     Exclusive := false;
     PresetAdd := false;
     PresetRemove := false;
     MissingOnly := false;
     Everything := false;
 
-    if not EditRuleForm(key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
+    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
 
+    joRules.O[key].S['Type'] := ruleType;
     joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
     joRules.O[key].S['Preset Add'] := BoolToStr(PresetAdd);
     joRules.O[key].S['Preset Remove'] := BoolToStr(PresetRemove);
@@ -581,21 +637,23 @@ procedure RulesMenuEditClick(Sender: TObject);
 }
 var
     idx: integer;
-    key: string;
+    key, ruleType: string;
     Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean;
 begin
     if not Assigned(lvRules.Selected) then Exit;
     idx := lvRules.Selected.Index;
 
     key := joRules.Names[idx];
+    ruleType := joRules.O[key].S['Type'];
     Exclusive := StrToBool(joRules.O[key].S['Exclusive']);
-    PresetAdd := joRules.O[key].S['Preset Add'];
-    PresetRemove := joRules.O[key].S['Preset Remove'];
-    MissingOnly := joRules.O[key].S['Missing Only'];
-    Everything := joRules.O[key].S['Everything'];
+    PresetAdd := StrToBool(joRules.O[key].S['Preset Add']);
+    PresetRemove := StrToBool(joRules.O[key].S['Preset Remove']);
+    MissingOnly := StrToBool(joRules.O[key].S['Missing Only']);
+    Everything := StrToBool(joRules.O[key].S['Everything']);
 
-    if not EditRuleForm(key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
+    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
 
+    joRules.O[key].S['Type'] := ruleType;
     joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
     joRules.O[key].S['Preset Add'] := BoolToStr(PresetAdd);
     joRules.O[key].S['Preset Remove'] := BoolToStr(PresetRemove);
@@ -636,7 +694,7 @@ procedure frmRuleFormClose(Sender: TObject; var Action: TCloseAction);
 }
 begin
     if TForm(Sender).ModalResult <> mrOk then Exit;
-    if TEdit(TForm(Sender).FindComponent('edKey')).Text = '' then begin
+    if cbkey.Text = '' then begin
         MessageDlg('ID must not be empty.', mtInformation, [mbOk], 0);
         Action := caNone;
     end;
@@ -678,6 +736,7 @@ procedure frmOptionsFormClose(Sender: TObject; var Action: TCloseAction);
 }
 begin
     if TForm(Sender).ModalResult <> mrOk then Exit
+    else bSaveUserRules := True;
 end;
 
 function CreateLabel(aParent: TControl; x, y: Integer; aCaption: string): TLabel;
@@ -760,6 +819,80 @@ begin
                 bQuickFaceFix := False;
                 continue;
             end;
+        end;
+    end;
+end;
+
+procedure FetchRules;
+{
+    Loads the Rule JSON files.
+}
+var
+    c, i: integer;
+    f, j, key: string;
+begin
+    for i := 0 to Pred(FileCount) do begin
+        f := GetFileName(FileByIndex(i));
+        LoadRules(f);
+    end;
+    j := sVEFSDir + '\Rules\UserRules.json';
+    if FileExists(j) then begin
+        AddMessage('Loaded Rule File: ' + j);
+        joUserRules := TJsonObject.Create;
+        joUserRules.LoadFromFile(j);
+        for c := 0 to Pred(joUserRules.Count) do begin
+            key := joUserRules.Names[c];
+            joRules.O[key].Assign(joUserRules.O[key]);
+        end;
+    end;
+    SortJSONObjectKeys(joRules);
+end;
+
+procedure LoadRules(f: string);
+{
+    Load LOD Rules and Material Swap Map JSON files
+}
+var
+    sub: TJsonObject;
+    c, a: integer;
+    j, key: string;
+    bFirstRuleJson: Boolean;
+begin
+    //VEFS directory Rules
+    j := sVEFSDir + '\Rules\' + TrimLeftChars(f, 4) + '.json';
+    if FileExists(j) then begin
+        AddMessage('Loaded Rule File: ' + j);
+        if bFirstRuleJson then begin
+            bFirstRuleJson := False;
+            joRules.LoadFromFile(j);
+        end
+        else begin
+            sub := TJsonObject.Create;
+            sub.LoadFromFile(j);
+            for c := 0 to Pred(sub.Count) do begin
+                key := sub.Names[c];
+                joRules.O[key].Assign(sub.O[key]);
+            end;
+            sub.Free;
+        end;
+    end;
+
+    //Data directory Rules
+    j := 'VEFS\' + TrimLeftChars(f, 4) + '.json';
+    if ResourceExists(j) then begin
+        AddMessage('Loaded Rule File: ' + j);
+        if bFirstRuleJson then begin
+            bFirstRuleJson := False;
+            joRules.LoadFromResource(j);
+        end
+        else begin
+            sub := TJsonObject.Create;
+            sub.LoadFromResource(j);
+            for c := 0 to Pred(sub.Count) do begin
+                key := sub.Names[c];
+                joRules.O[key].Assign(sub.O[key]);
+            end;
+            sub.Free;
         end;
     end;
 end;
@@ -849,6 +982,7 @@ var
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
     slRace, slNpc, slTxst, slHdpt, slRaceSex, slEditorIds: TStringList;
+    bHadFaceGenNPC: Boolean;
 begin
     slRace := TStringList.Create;
     slNpc := TStringList.Create;
@@ -863,7 +997,7 @@ begin
     for i := 0 to Pred(FileCount) do begin
         f := FileByIndex(i);
         filename := GetFileName(f);
-        slPluginFiles.Add(filename);
+        if SameText(filename, 'Fallout4.exe') then continue;
 
         if SameText(filename, 'Fallout4.esm') then begin
             fallout4esm := f;
@@ -889,6 +1023,8 @@ begin
 
     for i := 0 to Pred(FileCount) do begin
         f := FileByIndex(i);
+        filename := GetFileName(f);
+        if SameText(filename, 'Fallout4.exe') then continue;
 
         //RACE
         g := GroupBySignature(f, 'RACE');
@@ -905,16 +1041,20 @@ begin
 
         //NPC_
         g := GroupBySignature(f, 'NPC_');
+        bHadFaceGenNPC := false;
         for j := 0 to Pred(ElementCount(g)) do begin
             r := WinningOverride(ElementByIndex(g, j));
             recordId := GetFileName(r) + #9 + ShortName(r);
             idx := slNpc.IndexOf(recordId);
-            if idx > -1 then continue;
+            if idx > -1 then begin
+                bHadFaceGenNPC := true;
+                continue;
+            end;
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
             idx := tlRace.IndexOf(race);
             if idx = -1 then continue;
             if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
-            if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
+            //if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
             if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
 
@@ -924,7 +1064,9 @@ begin
             //     if FaceGenExists(relativeFormid, masterFile) then continue;
             // end;
             slNpc.Add(recordId);
+            slNPCRecords.Add(ShortName(r));
             tlNpc.Add(r);
+            bHadFaceGenNPC := true;
             sex := 'Male';
             if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
             slRaceSex.Add(ShortName(race) + #9 + sex + #9 + ShortName(r));
@@ -942,6 +1084,7 @@ begin
 
             //AddMessage(recordID);
         end;
+        if bHadFaceGenNPC then slPluginFiles.Add(filename);
 
         //Hdpt
         g := GroupBySignature(f, 'HDPT');
@@ -1076,8 +1219,10 @@ var
     masterFile, relativeFormid: string;
     npc, masterRecord: IInterface;
 begin
+    if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then Exit;
     masterRecord := MasterOrSelf(r);
     masterFile := GetFileName(masterRecord);
+
     if bOnlyMissing or bQuickFaceFix then begin
         relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
         if FaceGenExists(relativeFormid, masterFile) then Exit;
@@ -1484,6 +1629,37 @@ begin
     if not ResourceExists('Textures\Actors\Character\FaceCustomization\' + masterFile + '\' + relativeFormid + '_msn.dds') then Exit;
     if not ResourceExists('Textures\Actors\Character\FaceCustomization\' + masterFile + '\' + relativeFormid + '_s.dds') then Exit;
     Result := True;
+end;
+
+procedure SortJSONObjectKeys(JSONObj: TJsonObject);
+{
+    Sorts JSON keys alphabetically.
+}
+var
+    SortedKeys: TStringList;
+    Key: string;
+    NewJSONObj: TJsonObject;
+    i: integer;
+begin
+    // Create a sorted list of keys
+    SortedKeys := TStringList.Create;
+    NewJSONObj := TJsonObject.Create;
+    try
+        for i := 0 to Pred(JSONObj.Count) do SortedKeys.Add(JSONObj.Names[i]);
+        SortedKeys.Sort; // Sort the keys alphabetically
+
+        for i := 0 to Pred(SortedKeys.Count) do begin
+            Key := SortedKeys[i];
+            NewJSONObj.O[Key].Assign(JSONObj.O[Key]);
+        end;
+
+        // Replace the original JSONObj with the sorted one
+        JSONObj.Clear;
+        JSONObj.Assign(NewJSONObj);
+    finally
+        SortedKeys.Free;
+        NewJSONObj.Free;
+    end;
 end;
 
 function GamePath: string;
