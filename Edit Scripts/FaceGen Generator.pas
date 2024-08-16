@@ -1138,7 +1138,7 @@ begin
             idx := slNpc.IndexOf(recordId);
             if idx > -1 then begin
                 bHadFaceGenNPC := true;
-                joFaces.O[filename].A['npcs'].Add(ShortName(r));
+                joFaces.O[filename].A['npcs'].Add(NPC_id(r));
                 continue;
             end;
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
@@ -1155,9 +1155,9 @@ begin
             //     if FaceGenExists(relativeFormid, masterFile) then continue;
             // end;
             slNpc.Add(recordId);
-            slNPCRecords.Add(ShortName(r));
+            slNPCRecords.Add(NPC_id(r));
             tlNpc.Add(r);
-            joFaces.O[filename].A['npcs'].Add(ShortName(r));
+            joFaces.O[filename].A['npcs'].Add(NPC_id(r));
             bHadFaceGenNPC := true;
             sex := 'Male';
             if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
@@ -1320,7 +1320,7 @@ begin
     bMissingHere := false;
     bAllHere := false;
 
-    sn := ShortName(r);
+    sn := NPC_id(r);
 
     //If any rule sets "Only NPCs Matching" then those NPCs are added to slNPCMatches. Skip this NPC if not in that list.
     if ((slNPCMatches.Count > 0) and (slNPCMatches.IndexOf(sn) = -1)) then begin
@@ -1799,6 +1799,19 @@ end;
 function GamePath: string;
 begin
     Result := TrimLeftChars(wbDataPath, 5);
+end;
+
+function NPC_id(r: IInterface): string;
+var
+    relativeFormid, editorID, fullName, filename: string;
+begin
+    editorId := GetElementEditValues(r, 'EDID');
+    if ElementExists(r, 'FULL') then
+        fullName := '     "' + GetElementEditValues(r, 'FULL') + '"'
+    else fullName := '';
+    filename := GetFileName(r);
+    relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
+    Result := editorId + fullName + '     [ ' + filename + '\' + relativeFormid + ' ]';
 end;
 
 procedure ListStringsInStringList(sl: TStringList);
