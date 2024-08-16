@@ -86,7 +86,7 @@ $script:winhttp = Join-Path $script:fo4 "winhttp.dll"
 
 $script:xEditPath = $scriptDir #set here as default for the file open dialog
 $script:xEditExecutable = $null
-$script:meshes = Join-Path $script:data -ChildPath "Meshes"
+$script:meshes = Join-Path $scriptDir -ChildPath "Temp\Meshes"
 $script:textures = Join-Path $script:data -ChildPath "Textures"
 $script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
 $script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
@@ -357,6 +357,7 @@ try {
     $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
     $NeedPlugin = [string]$script:configfile.NeedPlugin
     $FaceCount = [string]$script:configfile.Face_Count
+    $RunElric = [string]$script:configFile.RunElric
     if ($FaceCount -eq "0") {
         Write-Host "No faces require FaceGen Generation. VEFS will now close."
         if ($NeedPlugin -eq "false") {
@@ -443,23 +444,26 @@ try {
         Write-Host "`"$script:tempfolder`" was deleted automatically"
     }
     #Copy meshes to temp folder
-    #Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
+    Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
+
     #Run Elric only on the meshes.
-    # $ElricProcess = Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
-    # -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
-    # -PassThru
-    # if (!($ElricProcess.HasExited)) {
-    #     Wait-Process -InputObject $ElricProcess
-    # }
-    # try {
-    #     Get-Process -Name "Elrich" -ErrorAction Stop
-    #     Read-Host "Press Any Key after Elrich has closed"
-    # } catch {
-    #     Write-Host "Elric has exited."
-    # }
+    if ($RunElric -eq "true") {
+        $ElricProcess = Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
+        -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
+        -PassThru
+        if (!($ElricProcess.HasExited)) {
+            Wait-Process -InputObject $ElricProcess
+        }
+        try {
+            Get-Process -Name "Elrich" -ErrorAction Stop
+            Read-Host "Press Any Key after Elrich has closed"
+        } catch {
+            Write-Host "Elric has exited."
+        }
+    }
 
     #Create meshes archive
-    $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:data`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
+    $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
 
     #Quick Auto Clean
     $qac = Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -PassThru
@@ -516,13 +520,13 @@ try {
             Write-Host "`"$script:FacegenTextures`" was NOT deleted."
         }
 
-        # $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
-        # if ($decision -eq 6) {
-        #     Remove-Item -LiteralPath "$script:tempfolder" -Recurse
-        #     Write-Host "`"$script:tempfolder`" was deleted."
-        # } else {
-        #     Write-Host "`"$script:tempfolder`" was NOT deleted."
-        # }
+        $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
+        if ($decision -eq 6) {
+            Remove-Item -LiteralPath "$script:tempfolder" -Recurse
+            Write-Host "`"$script:tempfolder`" was deleted."
+        } else {
+            Write-Host "`"$script:tempfolder`" was NOT deleted."
+        }
     }
 
     # Check if the -zip argument was passed

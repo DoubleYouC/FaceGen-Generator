@@ -9,7 +9,7 @@ unit FaceGen;
 
 var
     iPluginFile: IInterface;
-    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules: Boolean;
+    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
     slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything: TStringList;
@@ -214,6 +214,7 @@ var
     picVefs: TPicture;
     fImage: TImage;
     cbResolution: TComboBox;
+    chkElric: TCheckBox;
     ini: TIniFile;
     bCKPEExists: Boolean;
 begin
@@ -272,7 +273,7 @@ begin
         rbOnlyMissing := TRadioButton.Create(gbOptions);
         rbOnlyMissing.Name := 'rbOnlyMissing';
         rbOnlyMissing.Parent := gbOptions;
-        rbOnlyMissing.Left := rbFaceGenPreset.Left + rbFaceGenPreset.Width + 20;;
+        rbOnlyMissing.Left := rbFaceGenPreset.Left + rbFaceGenPreset.Width + 20;
         rbOnlyMissing.Top := rbFaceGenPreset.Top;
         rbOnlyMissing.Width := 150;
         rbOnlyMissing.Caption := 'Generate Missing Faces';
@@ -294,9 +295,16 @@ begin
         rbAll.Caption := 'Generate All Faces';
         rbAll.ShowHint := True;
 
+        chkElric := TCheckBox.Create(gbOptions);
+        chkElric.Parent := gbOptions;
+        chkElric.Left := 16;
+        chkElric.Top := 61;
+        chkElric.Width := 100;
+        chkElric.Caption := 'Run Elric';
+
         cbResolution := TComboBox.Create(gbOptions);
         cbResolution.Parent := gbOptions;
-        cbResolution.Left := 90;
+        cbResolution.Left := rbOnlyMissing.Left + 60;
         cbResolution.Top := 60;
         cbResolution.Width := 50;
         cbResolution.Style := csDropDownList;
@@ -304,7 +312,7 @@ begin
         cbResolution.ItemIndex := slResolutions.IndexOf(sResolution);
         cbResolution.Hint := 'Sets the texture resolution.';
         cbResolution.ShowHint := True;
-        CreateLabel(gbOptions, 20, cbResolution.Top + 3, 'Resolution');
+        CreateLabel(gbOptions, rbOnlyMissing.Left, cbResolution.Top + 3, 'Resolution');
 
         btnStart := TButton.Create(gbOptions);
         btnStart.Parent := gbOptions;
@@ -340,6 +348,8 @@ begin
         frm.ScaleBy(uiScale, 100);
         frm.Font.Size := 8;
 
+        chkElric.Checked := StrToBool(joConfig.S['RunElric']);
+
         if frm.ShowModal <> mrOk then begin
             Result := False;
             Exit;
@@ -351,6 +361,7 @@ begin
         bAll := rbAll.Checked;
         sResolution := slResolutions[cbResolution.ItemIndex];
         joConfig.S['Resolution'] := sResolution;
+        joConfig.S['RunElric'] := chkElric.Checked;
         if bCKPEExists then ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
 
         if bOnlyMissing then AddMessage('Mode: Only Missing')
