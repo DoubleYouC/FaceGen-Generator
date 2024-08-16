@@ -371,7 +371,7 @@ begin
     frm := TForm.Create(nil);
     try
         frm.Caption := 'Rule Editor';
-        frm.Width := 800;
+        frm.Width := 1000;
         frm.Height := 600;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsSizeable;
@@ -392,7 +392,7 @@ begin
         lvRules.RowSelect := True;
         lvRules.DoubleBuffered := True;
         lvRules.Columns.Add.Caption := 'NPC or Plugin';
-        lvRules.Columns[0].Width := 160;
+        lvRules.Columns[0].Width := 360;
         lvRules.Columns.Add.Caption := 'Only NPCs Matching';
         lvRules.Columns[1].Width := 160;
         lvRules.Columns.Add.Caption := 'Preset Add';
@@ -453,7 +453,7 @@ begin
     end;
 end;
 
-function EditRuleForm(var ruleType, key: string; var Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean): Boolean;
+function EditRuleForm(var ruleType, key: string; var Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything, bEdit: Boolean): Boolean;
 var
     frmRule: TForm;
     pnl: TPanel;
@@ -463,7 +463,7 @@ begin
   frmRule := TForm.Create(nil);
   try
     frmRule.Caption := 'Rule';
-    frmRule.Width := 600;
+    frmRule.Width := 800;
     frmRule.Height := 220;
     frmRule.Position := poMainFormCenter;
     frmRule.BorderStyle := bsDialog;
@@ -479,13 +479,15 @@ begin
     cbNPCPlugin.Top := 12;
     cbNPCPlugin.Width := 80;
     cbNPCPlugin.OnChange := NPCPluginChange;
+    cbNPCPlugin.Style := csDropDownList;
 
     cbkey := TComboBox.Create(frmRule);
     cbkey.Parent := frmRule;
     cbkey.Name := 'cbkey';
     cbkey.Left := 120;
     cbkey.Top := 12;
-    cbkey.Width := frmRule.Width - 170;
+    cbkey.Width := frmRule.Width - 140;
+
 
     chkExclusive := TCheckBox.Create(frmRule);
     chkExclusive.Parent := frmRule;
@@ -563,7 +565,8 @@ begin
     frmRule.ActiveControl := cbkey;
     frmRule.ScaleBy(uiScale, 100);
     frmRule.Font.Size := 8;
-
+    cbkey.Enabled := bEdit;
+    cbNPCPlugin.Enabled := bEdit;
     if frmRule.ShowModal <> mrOk then Exit;
 
     ruleType := slNPCPlugin[cbNPCPlugin.ItemIndex];
@@ -641,7 +644,7 @@ begin
     MissingOnly := false;
     Everything := false;
 
-    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
+    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything, true) then Exit;
 
     joRules.O[key].S['Type'] := ruleType;
     joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
@@ -677,7 +680,7 @@ begin
     MissingOnly := StrToBool(joRules.O[key].S['Missing Only']);
     Everything := StrToBool(joRules.O[key].S['Everything']);
 
-    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything) then Exit;
+    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything, false) then Exit;
 
     joRules.O[key].S['Type'] := ruleType;
     joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
@@ -1807,11 +1810,11 @@ var
 begin
     editorId := GetElementEditValues(r, 'EDID');
     if ElementExists(r, 'FULL') then
-        fullName := '     "' + GetElementEditValues(r, 'FULL') + '"'
+        fullName := GetElementEditValues(r, 'FULL') + '     '
     else fullName := '';
-    filename := GetFileName(r);
+    filename := GetFileName(MasterOrSelf(r));
     relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
-    Result := editorId + fullName + '     [ ' + filename + '\' + relativeFormid + ' ]';
+    Result := fullName + editorId + '     [ ' + filename + '\' + relativeFormid + ' ]';
 end;
 
 procedure ListStringsInStringList(sl: TStringList);
