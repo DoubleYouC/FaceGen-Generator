@@ -21,6 +21,7 @@ var
     btnRuleOk, btnRuleCancel: TButton;
     cbNPCPlugin: TComboBox;
     cbkey: TComboBox;
+    chkPresetAdd, chkPresetRemove, chkMissingOnly, chkEverything: TCheckBox;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -458,7 +459,7 @@ var
     frmRule: TForm;
     pnl: TPanel;
     btnOk, btnCancel: TButton;
-    chkExclusive, chkPresetAdd, chkPresetRemove, chkMissingOnly, chkEverything: TCheckBox;
+    chkExclusive: TCheckBox;
 begin
   frmRule := TForm.Create(nil);
   try
@@ -496,12 +497,14 @@ begin
     chkExclusive.Width := 150;
     chkExclusive.Caption := 'Only NPCs Matching';
 
+
     chkPresetAdd := TCheckBox.Create(frmRule);
     chkPresetAdd.Parent := frmRule;
     chkPresetAdd.Left := chkExclusive.Width + chkExclusive.Left + 16;
     chkPresetAdd.Top := cbkey.Top + 48;
     chkPresetAdd.Width := 200;
     chkPresetAdd.Caption := 'Add Chargen Preset Flag';
+    chkPresetAdd.OnClick := ruleFormCheckboxHandler;
 
     chkPresetRemove := TCheckBox.Create(frmRule);
     chkPresetRemove.Parent := frmRule;
@@ -509,6 +512,7 @@ begin
     chkPresetRemove.Top := chkPresetAdd.Top + 32;
     chkPresetRemove.Width := 200;
     chkPresetRemove.Caption := 'Remove Chargen Preset Flag';
+    chkPresetRemove.OnClick := ruleFormCheckboxHandler;
 
     chkMissingOnly := TCheckBox.Create(frmRule);
     chkMissingOnly.Parent := frmRule;
@@ -516,6 +520,7 @@ begin
     chkMissingOnly.Top := cbkey.Top + 48;
     chkMissingOnly.Width := 200;
     chkMissingOnly.Caption := 'Generate FaceGen if Missing';
+    chkMissingOnly.OnClick := ruleFormCheckboxHandler;
 
     chkEverything := TCheckBox.Create(frmRule);
     chkEverything.Parent := frmRule;
@@ -523,6 +528,7 @@ begin
     chkEverything.Top := chkMissingOnly.Top + 32;
     chkEverything.Width := 200;
     chkEverything.Caption := 'Generate FaceGen Always';
+    chkEverything.OnClick := ruleFormCheckboxHandler;
 
     btnOk := TButton.Create(frmRule);
     btnOk.Parent := frmRule;
@@ -587,6 +593,19 @@ begin
   finally
     frmRule.Free;
   end;
+end;
+
+procedure ruleFormCheckboxHandler(Sender: TObject);
+begin
+    if chkEverything.Checked then chkMissingOnly.Enabled := false;
+    if not chkEverything.Checked then chkMissingOnly.Enabled := true;
+    if chkMissingOnly.Checked then chkEverything.Enabled := false;
+    if not chkMissingOnly.Checked then chkEverything.Enabled := true;
+
+    if chkPresetRemove.Checked then chkPresetAdd.Enabled := false;
+    if not chkPresetRemove.Checked then chkPresetAdd.Enabled := true;
+    if chkPresetAdd.Checked then chkPresetRemove.Enabled := false;
+    if not chkPresetAdd.Checked then chkPresetRemove.Enabled := true;
 end;
 
 procedure NPCPluginChange(Sender: TObject);
