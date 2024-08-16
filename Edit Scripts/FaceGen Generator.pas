@@ -960,7 +960,7 @@ begin
         end;
 
         //Everything
-        Everything := StrToBool(joRules.O[key].S['Missing Only']);
+        Everything := StrToBool(joRules.O[key].S['Everything']);
         if Everything then begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slEverything.Add(key)
