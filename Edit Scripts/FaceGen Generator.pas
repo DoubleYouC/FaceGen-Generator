@@ -1334,7 +1334,10 @@ begin
     idx := slPresetRemove.IndexOf(sn);
     if idx > -1 then bRemovePreset := true;
 
-    if not bRemovePreset and (GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1') then Exit;
+    if (GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1') then begin
+        if not bRemovePreset then Exit;
+    end;
+
     masterRecord := MasterOrSelf(r);
     masterFile := GetFileName(masterRecord);
 
@@ -1350,9 +1353,6 @@ begin
     if bMissingHere or bOnlyMissing or bQuickFaceFix then begin
         relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
         if not bAllHere then begin
-            if FaceGenExists(relativeFormid, masterFile) then Exit;
-        end;
-        if not bAddPreset then begin
             if FaceGenExists(relativeFormid, masterFile) then Exit;
         end;
     end;
