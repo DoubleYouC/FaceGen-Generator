@@ -180,12 +180,12 @@ function CheckForFacegenPatch {
             break
         } else {
             Write-Host "Waiting for Faces.json..."
-            Start-Sleep -Seconds 5
             if ($script:xEditProcess.HasExited){
                 Write-Host "xEdit was terminated prematurely. VEFS will now close."
                 Pause
                 Exit
             }
+            Start-Sleep -Seconds 5
         }
     }
 
