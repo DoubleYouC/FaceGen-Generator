@@ -54,12 +54,23 @@ begin
     CollectRecords;
 
     if not bBatchMode then begin
-
         if not MainMenuForm then begin
             Result := 1;
             Exit;
         end;
+    end;
 
+    if bOnlyMissing then begin
+        AddMessage('Mode: Only Missing');
+        joConfig.S['Mode'] := 'Only Missing';
+    end
+    else if bQuickFaceFix then begin
+        AddMessage('Mode: Quick Face Fix');
+        joConfig.S['Mode'] := 'Quick Face Fix';
+    end
+    else if bAll then begin
+        AddMessage('Mode: All');
+        joConfig.S['Mode'] := 'All';
     end;
 
     if not bQuickFaceFix then begin
@@ -398,19 +409,15 @@ begin
         else Result := True;
 
         sRealPlugin := edPluginName.Text;
-        joConfig.S['PluginName'] := sRealPlugin;
         bOnlyMissing := rbOnlyMissing.Checked;
         bQuickFaceFix := rbFaceGenPreset.Checked;
         bAll := rbAll.Checked;
         sResolution := slResolutions[cbResolution.ItemIndex];
+
+        joConfig.S['PluginName'] := sRealPlugin;
         joConfig.S['Resolution'] := sResolution;
         joConfig.S['RunElric'] := chkElric.Checked;
         if bCKPEExists then ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
-
-        if bOnlyMissing then AddMessage('Mode: Only Missing')
-        else if bQuickFaceFix then AddMessage('Mode: Quick Face Fix')
-        else if bAll then AddMessage('Mode: All');
-
     finally
         frm.Free;
     end;
@@ -1450,7 +1457,9 @@ begin
     if bMissingHere or bOnlyMissing or bQuickFaceFix then begin
         relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
         if not bAllHere then begin
-            if FaceGenExists(relativeFormid, masterFile) then Exit;
+            if not bAddPreset then begin
+                if FaceGenExists(relativeFormid, masterFile) then Exit;
+            end;
         end;
     end;
 

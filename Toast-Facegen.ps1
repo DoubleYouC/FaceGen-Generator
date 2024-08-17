@@ -296,7 +296,7 @@ if (-not ('WindowHelper' -as [Type])) {
 # Main script execution
 try {
     $fo4EditExe = GetOrSelectxEditPath
-    $fo4EditProcessName = [System.IO.Path]::GetFileNameWithoutExtension($fo4EditExe)
+    # $fo4EditProcessName = [System.IO.Path]::GetFileNameWithoutExtension($fo4EditExe)
     $script:PluginName = [string]$script:configfile.PluginName
     if (!($PluginName)) { $script:PluginName="FaceGen Output" }
     $script:RunElric = [string]$script:configFile.RunElric
@@ -350,7 +350,8 @@ try {
         Remove-Item -Path $script:FacesJson
         Write-Host "$script:FacesJson was deleted automatically"
     }
-    # Start the process with the valid executable path
+
+    # Start the xEdit process with the valid executable path
     if (!(Test-Path -Path $script:facegenpatch)) {
         LaunchXEdit
     } else {
@@ -363,6 +364,7 @@ try {
     $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
     $NeedPlugin = [string]$script:configfile.NeedPlugin
     $FaceCount = [string]$script:configfile.Face_Count
+    $Mode = [string]$script:configfile.Mode
     $script:RunElric = [string]$script:configFile.RunElric
 
     $script:PluginName = [string]$script:configfile.PluginName
@@ -373,10 +375,18 @@ try {
         if ($NeedPlugin -eq "false") {
             Remove-Item -LiteralPath $script:facegenpatch
         }
-        Start-Sleep -Seconds 5
+        if ($Mode -eq "Quick Face Fix") {
+            Copy-Item $script:facegenpatch -Destination "$data\$PluginName.esp" -Force
+            Remove-Item -LiteralPath $script:facegenpatch
+        }
+        Pause
         Exit
     } else {
         Write-Host "Faces to make: $FaceCount"
+    }
+    if ($Mode -eq "Quick Face Fix") {
+        Copy-Item $script:facegenpatch -Destination "$data\$PluginName.esp" -Force
+        Remove-Item -LiteralPath $script:facegenpatch
     }
 
     HandleSteamApiMismatch
@@ -481,18 +491,6 @@ try {
 
     #Create meshes archive
     $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
-
-    #Quick Auto Clean
-    $qac = Start-Process -FilePath $fo4EditExe -ArgumentList "-FO4 -IKnowWhatImDoing -QuickAutoClean -autoload -autoexit -D:`"$script:data`" `"$script:facegenpatch`"" -PassThru
-    if (!($qac.HasExited)) {
-        Wait-Process -InputObject $qac
-    }
-    try {
-        Get-Process -Name $fo4EditProcessName -ErrorAction Stop
-        Read-Host "Press Any Key after FO4Edit has closed"
-    } catch {
-        Write-Host "FO4Edit has exited."
-    }
 
     if (!($meshesArchiveProcess.HasExited)) {
         Wait-Process -InputObject $meshesArchiveProcess
