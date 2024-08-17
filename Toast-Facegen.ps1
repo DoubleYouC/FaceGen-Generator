@@ -444,7 +444,14 @@ try {
         Write-Host "`"$script:tempfolder`" was deleted automatically"
     }
     #Copy meshes to temp folder
-    Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse
+    try {
+        Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse -Force -ErrorAction Stop
+    }
+    catch {
+        Start-Sleep -Seconds 60
+        Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse -Force -ErrorAction Stop
+    }
+
 
     #Run Elric only on the meshes.
     if ($RunElric -eq "true") {
