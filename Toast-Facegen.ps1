@@ -157,6 +157,8 @@ function GetOrSelectxEditPath {
 function SaveSettings {
     # Save the settings
     $script:configfile = @{
+        RunElric = $RunElric
+        PluginName = $PluginName
         xEditDirectory = $script:xEditPath
         xEditExecutable = $script:xEditExecutable
         scriptDirectory = $scriptDir
@@ -295,6 +297,10 @@ if (-not ('WindowHelper' -as [Type])) {
 try {
     $fo4EditExe = GetOrSelectxEditPath
     $fo4EditProcessName = [System.IO.Path]::GetFileNameWithoutExtension($fo4EditExe)
+    $script:PluginName = [string]$script:configfile.PluginName
+    if (!($PluginName)) { $script:PluginName="FaceGen Output" }
+    $script:RunElric = [string]$script:configFile.RunElric
+    if (!($RunElric)) { $script:RunElric="false" }
     SaveSettings
 
     $fo4EditVer = (Get-Item $fo4EditExe).VersionInfo.FileVersionRaw
@@ -357,7 +363,11 @@ try {
     $script:configfile = Get-Content  -Path $jsonFilePath | ConvertFrom-Json
     $NeedPlugin = [string]$script:configfile.NeedPlugin
     $FaceCount = [string]$script:configfile.Face_Count
-    $RunElric = [string]$script:configFile.RunElric
+    $script:RunElric = [string]$script:configFile.RunElric
+
+    $script:PluginName = [string]$script:configfile.PluginName
+    $meshesarchive = Join-Path $script:data "$PluginName - Main.ba2"
+    $texturesarchive = Join-Path $script:data "$PluginName - Textures.ba2"
     if ($FaceCount -eq "0") {
         Write-Host "No faces require FaceGen Generation. VEFS will now close."
         if ($NeedPlugin -eq "false") {
