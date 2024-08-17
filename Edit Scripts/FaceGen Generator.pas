@@ -11,8 +11,9 @@ var
     iPluginFile, iRealPlugin: IInterface;
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
-    tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
+    tlRace, tlNpc, tlTxst, tlHdpt, tlCopyToReal: TList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures: TStringList;
+    slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig, joRules, joUserRules: TJsonObject;
     uiScale: integer;
@@ -42,6 +43,7 @@ begin
 
     //Get scaling
     uiScale := Screen.PixelsPerInch * 100 / 96;
+    AddMessage('UI scale: ' + IntToStr(uiScale));
 
     //Used to tell the Rule Editor whether or not to save changes.
     bSaveUserRules := false;
@@ -65,8 +67,8 @@ begin
             Result := 1;
             Exit;
         end;
+        CreateRealPlugin;
     end;
-
 
     ProcessRecords;
     CollectAssets;
@@ -82,6 +84,7 @@ begin
     tlRace.Free;
     tlNpc.Free;
     tlHdpt.Free;
+    tlCopyToReal.Free;
 
     slModels.Free;
     slTextures.Free;
@@ -123,6 +126,7 @@ begin
     tlRace := TList.Create;
     tlNpc := TList.Create;
     tlHdpt := TList.Create;
+    tlCopyToReal := TList.Create;
 
     slModels := TStringList.Create;
     slModels.Sorted := True;
@@ -243,7 +247,7 @@ begin
     try
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
         frm.Width := 600;
-        frm.Height := 500;
+        frm.Height := 480;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
@@ -380,6 +384,7 @@ begin
         frm.ActiveControl := btnStart;
         frm.ScaleBy(uiScale, 100);
         frm.Font.Size := 8;
+        frm.Height := btnStart.Top + btnStart.Height + btnStart.Height + 25;
 
         chkElric.Checked := StrToBool(joConfig.S['RunElric']);
 
@@ -506,6 +511,7 @@ var
     btnOk, btnCancel: TButton;
     chkExclusive: TCheckBox;
     cbChargenPreset, cbFacegenMode: TComboBox;
+    idx: integer;
 begin
   frmRule := TForm.Create(nil);
   try
@@ -539,7 +545,7 @@ begin
     chkExclusive := TCheckBox.Create(frmRule);
     chkExclusive.Parent := frmRule;
     chkExclusive.Left := 16;
-    chkExclusive.Top := cbkey.Top + 48;
+    chkExclusive.Top := cbkey.Top + (2*cbkey.Height);
     chkExclusive.Width := 150;
     chkExclusive.Caption := 'Only NPCs Matching';
     chkExclusive.Hint := 'If any rule sets Only NPCs Matching to true,'
@@ -585,7 +591,7 @@ begin
     btnOk.Caption := 'OK';
     btnOk.ModalResult := mrOk;
     btnOk.Left := frmRule.Width - 176;
-    btnOk.Top := frmRule.Height - 82;
+    btnOk.Top := cbFacegenMode.Top + (2*cbFacegenMode.Height);
 
     btnCancel := TButton.Create(frmRule);
     btnCancel.Parent := frmRule;
@@ -600,6 +606,8 @@ begin
     pnl.Top := btnOk.Top - 12;
     pnl.Width := frmRule.Width - 20;
     pnl.Height := 2;
+
+    frmRule.Height := btnOk.Top + (4*btnOk.Height);
 
     cbNPCPlugin.ItemIndex := slNPCPlugin.IndexOf(ruleType);
     if SameText(ruleType, 'NPC') then begin
@@ -621,15 +629,19 @@ begin
     frmRule.Font.Size := 8;
     cbkey.Enabled := bEdit;
     cbNPCPlugin.Enabled := bEdit;
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     if frmRule.ShowModal <> mrOk then Exit;
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     ruleType := slNPCPlugin[cbNPCPlugin.ItemIndex];
     sLastRuleType := ruleType;
+
     if SameText(ruleType, 'NPC') then begin
-        key := slNPCRecords[cbkey.ItemIndex];
+        key := cbkey.Text;
     end
     else begin
-        key := slPluginFiles[cbkey.ItemIndex];
+        key := cbkey.Text;
     end;
 
     Exclusive := chkExclusive.Checked;
@@ -783,7 +795,7 @@ begin
         frm := TForm(Sender);
         lvRules.Width := frm.Width - 36;
         lvRules.Left := (frm.Width - lvRules.Width)/2;
-        lvRules.Height := frm.Height - 140;
+        lvRules.Height := frm.Height - btnRuleOk.Height - btnRuleOk.Height - btnRuleOk.Height - btnRuleOk.Height;
 
         btnRuleOk.Top := lvRules.Height + lvRules.Top + 8;
         btnRuleCancel.Top := btnRuleOk.Top;
@@ -1109,6 +1121,34 @@ begin
     slContainers.Free;
 end;
 
+procedure CreateRealPlugin;
+var
+    i: integer;
+    f: IInterface;
+    filename: string;
+begin
+    for i := 0 to Pred(FileCount) do begin
+        f := FileByIndex(i);
+        filename := GetFileName(f);
+        if SameText(filename, sRealPlugin + '.esp') then begin
+            iRealPlugin := f;
+            //Clear out any previous edits to the file.
+            if HasGroup(iRealPlugin, 'HDPT') then begin
+                RemoveNode(GroupBySignature(iRealPlugin, 'HDPT'));
+            end;
+            if HasGroup(iRealPlugin, 'NPC_') then begin
+                RemoveNode(GroupBySignature(iRealPlugin, 'NPC_'));
+            end;
+            CleanMasters(iRealPlugin);
+            AddMasterIfMissing(iRealPlugin, 'Fallout4.esm');
+        end;
+    end;
+    if not Assigned(iRealPlugin) then begin
+        iRealPlugin := AddNewFileName(sRealPlugin + '.esp', True);
+        AddMasterIfMissing(iRealPlugin, 'Fallout4.esm');
+    end;
+end;
+
 procedure CollectRecords;
 {
     Collects records.
@@ -1146,6 +1186,9 @@ begin
         else if SameText(filename, sPatchName) then begin
             iPluginFile := f;
             //Clear out any previous edits to the file.
+            if HasGroup(iPluginFile, 'HDPT') then begin
+                RemoveNode(GroupBySignature(iPluginFile, 'HDPT'));
+            end;
 
             if HasGroup(iPluginFile, 'NPC_') then begin
                 RemoveNode(GroupBySignature(iPluginFile, 'NPC_'));
@@ -1283,6 +1326,7 @@ begin
             headpart := wbCopyElementToFile(r, iPluginFile, False, True);
             bNeedPlugin := true;
             SetElementEditValues(headpart, 'EDID', newEditorId);
+            tlCopyToReal.Add(headpart);
 
             //AddMessage(recordID);
         end;
@@ -1352,6 +1396,11 @@ begin
     ListStringsInStringList(slNPC);
     joConfig.S['Face_Count'] := count;
     slNpc.Free;
+
+    if bQuickFaceFix then Exit;
+    for i := 0 to Pred(tlCopyToReal.Count) do begin
+        CopyToRealPlugin(ObjectToElement(tlCopyToReal[i]));
+    end;
 end;
 
 procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
@@ -1360,8 +1409,8 @@ procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
 }
 var
     masterFile, relativeFormid, sn: string;
-    npc, masterRecord: IInterface;
-    bRemovePreset, bAddPreset, bMissingHere, bAllHere: Boolean;
+    npc, masterRecord, npcnew: IInterface;
+    bRemovePreset, bAddPreset, bMissingHere, bAllHere, bWasChargenFacePreset: Boolean;
     idx: integer;
 begin
     bRemovePreset := false;
@@ -1381,8 +1430,10 @@ begin
     if idx > -1 then bRemovePreset := true;
 
     if (GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1') then begin
+        bWasChargenFacePreset := true;
         if not bRemovePreset then Exit;
-    end;
+    end
+    else bWasChargenFacePreset := false;
 
     masterRecord := MasterOrSelf(r);
     masterFile := GetFileName(masterRecord);
@@ -1411,17 +1462,24 @@ begin
     slNpc.Add(ShortName(r));
     count := count + 1;
 
-    if bRemovePreset then SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '0');
+    if bRemovePreset then begin
+        SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '0');
+        if bWasChargenFacePreset then CopyToRealPlugin(npc);
+    end;
 
-    if not bRemovePreset and bAddPreset then begin
+    if (not bRemovePreset) and (bAddPreset) then begin
         SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
         count := count - 1;
+        if not bWasChargenFacePreset then CopyToRealPlugin(npc);
     end;
 
     if not bRemovePreset and bQuickFaceFix then begin
         SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
         count := 0;
     end;
+
+    if bQuickFaceFix then Exit;
+    Remove(ElementByName(npc, 'Items'));
 
 end;
 
@@ -1660,6 +1718,13 @@ end;
 // ----------------------------------------------------
 // Generic Functions and Procedures go below.
 // ----------------------------------------------------
+
+function CopyToRealPlugin(r: IInterface): IInterface;
+begin
+    AddRequiredElementMasters(r, iRealPlugin, False, True);
+    SortMasters(iRealPlugin);
+    Result := wbCopyElementToFile(r, iRealPlugin, False, True);
+end;
 
 procedure AddTexture(id, texture, textureType: string);
 {
