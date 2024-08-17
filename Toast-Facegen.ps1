@@ -385,8 +385,11 @@ try {
         Write-Host "Faces to make: $FaceCount"
     }
     if ($Mode -eq "Quick Face Fix") {
+        Write-Host "Quick Face Fix mode finished. VEFS will now close."
         Copy-Item $script:facegenpatch -Destination "$data\$PluginName.esp" -Force
         Remove-Item -LiteralPath $script:facegenpatch
+        Pause
+        Exit
     }
 
     HandleSteamApiMismatch
@@ -401,12 +404,16 @@ try {
     } catch {
         Write-Host "Creation Kit has exited."
     }
+
     if ($script:steamapiWasReplaced) {
         Copy-Item $steamapiTempPath -Destination $steamapiPath
     }
+
     if ($bHasSteamAppIDTxt) {
         SteamAppIdTxt -appid $steamappidoriginal
     } else { Remove-Item -Path $script:steamappidtxtfile }
+
+    Remove-Item -LiteralPath $script:facegenpatch
 
 
     #####################################################################################################
