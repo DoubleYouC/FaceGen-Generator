@@ -8,11 +8,11 @@ unit FaceGen;
 // ----------------------------------------------------
 
 var
-    iPluginFile: IInterface;
+    iPluginFile, iRealPlugin: IInterface;
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric: Boolean;
-    sCKFixesINI, sVEFSDir, sPicVefs, sResolution: string;
+    sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
     tlRace, tlNpc, tlTxst, tlHdpt: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything: TStringList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig, joRules, joUserRules: TJsonObject;
     uiScale: integer;
@@ -21,7 +21,6 @@ var
     btnRuleOk, btnRuleCancel: TButton;
     cbNPCPlugin: TComboBox;
     cbkey: TComboBox;
-    chkPresetAdd, chkPresetRemove, chkMissingOnly, chkEverything: TCheckBox;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -39,6 +38,7 @@ var
 begin
     CreateObjects;
     bNeedPlugin := false;
+    sLastRuleType := 'Plugin';
 
     //Get scaling
     uiScale := Screen.PixelsPerInch * 100 / 96;
@@ -101,6 +101,8 @@ begin
     slPresetRemove.Free;
     slMissingOnly.Free;
     slEverything.Free;
+    slCharGenPreset.Free;
+    slFaceGenMode.Free;
 
     joRules.Free;
     if bSaveUserRules and bUserRulesChanged then begin
@@ -180,6 +182,16 @@ begin
 
     slPluginFiles := TStringList.Create;
 
+    slCharGenPreset := TStringList.Create;
+    slCharGenPreset.Add('Default');
+    slCharGenPreset.Add('Never');
+    slCharGenPreset.Add('Always');
+
+    slFaceGenMode := TStringList.Create;
+    slFaceGenMode.Add('Default');
+    slFaceGenMode.Add('Only If Missing');
+    slFaceGenMode.Add('Always');
+
 
     slResolutions := TStringList.Create;
     slResolutions.Add('512 ');
@@ -210,11 +222,12 @@ var
     frm: TForm;
     btnStart, btnCancel, btnRuleEditor: TButton;
     pnl: TPanel;
-    gbOptions: TGroupBox;
+    gbOptions, gbMode: TGroupBox;
     picVefs: TPicture;
     fImage: TImage;
     cbResolution: TComboBox;
     chkElric: TCheckBox;
+    edPluginName: TEdit;
     ini: TIniFile;
     bCKPEExists: Boolean;
 begin
@@ -230,7 +243,7 @@ begin
     try
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
         frm.Width := 600;
-        frm.Height := 450;
+        frm.Height := 500;
         frm.Position := poMainFormCenter;
         frm.BorderStyle := bsDialog;
         frm.KeyPreview := True;
@@ -249,19 +262,29 @@ begin
 		fImage.Top := 12;
         fImage.Stretch := True;
 
-        gbOptions := TGroupBox.Create(frm);
-        gbOptions.Parent := frm;
-        gbOptions.Top := fImage.Top + fImage.Height + 24;
-        gbOptions.Width := frm.Width - 24;
-        gbOptions.Left := 6;
-        gbOptions.Caption := 'Options';
-        gbOptions.Height := 144;
+        edPluginName := TEdit.Create(frm);
+        edPluginName.Parent := frm;
+        edPluginName.Name := 'edPluginName';
+        edPluginName.Left := 104;
+        edPluginName.Top := fImage.Top + fImage.Height + 20;
+        edPluginName.Width := 180;
+        edPluginName.Hint := 'Sets the output plugin name.';
+        edPluginName.ShowHint := True;
+        CreateLabel(frm, 16, edPluginName.Top + 4, 'Output Plugin:');
 
-        rbFaceGenPreset := TRadioButton.Create(gbOptions);
+        gbMode := TGroupBox.Create(frm);
+        gbMode.Parent := frm;
+        gbMode.Top := edPluginName.Top + 30;
+        gbMode.Width := frm.Width - 24;
+        gbMode.Left := 6;
+        gbMode.Caption := 'Mode';
+        gbMode.Height := 54;
+
+        rbFaceGenPreset := TRadioButton.Create(gbMode);
         rbFaceGenPreset.Name := 'rbFaceGenPreset';
-        rbFaceGenPreset.Parent := gbOptions;
+        rbFaceGenPreset.Parent := gbMode;
         rbFaceGenPreset.Left := 16;
-        rbFaceGenPreset.Top := 30;
+        rbFaceGenPreset.Top := 24;
         rbFaceGenPreset.Width := 100;
         rbFaceGenPreset.Caption := 'Quick Face Fix';
         rbFaceGenPreset.Hint := 'Copies only NPCs to patch for whom facegen is missing,'
@@ -270,9 +293,9 @@ begin
              + #13#10 + 'The game will generate the face, which may cause stutter.';
         rbFaceGenPreset.ShowHint := True;
 
-        rbOnlyMissing := TRadioButton.Create(gbOptions);
+        rbOnlyMissing := TRadioButton.Create(gbMode);
         rbOnlyMissing.Name := 'rbOnlyMissing';
-        rbOnlyMissing.Parent := gbOptions;
+        rbOnlyMissing.Parent := gbMode;
         rbOnlyMissing.Left := rbFaceGenPreset.Left + rbFaceGenPreset.Width + 20;
         rbOnlyMissing.Top := rbFaceGenPreset.Top;
         rbOnlyMissing.Width := 150;
@@ -283,9 +306,9 @@ begin
         rbOnlyMissing.ShowHint := True;
         rbOnlyMissing.Checked := True;
 
-        rbAll := TRadioButton.Create(gbOptions);
+        rbAll := TRadioButton.Create(gbMode);
         rbAll.Name := 'rbAll';
-        rbAll.Parent := gbOptions;
+        rbAll.Parent := gbMode;
         rbAll.Left := rbOnlyMissing.Left + rbOnlyMissing.Width + 20;
         rbAll.Top := rbFaceGenPreset.Top;
         rbAll.Width := 150;
@@ -295,17 +318,25 @@ begin
         rbAll.Caption := 'Generate All Faces';
         rbAll.ShowHint := True;
 
+        gbOptions := TGroupBox.Create(frm);
+        gbOptions.Parent := frm;
+        gbOptions.Top := gbMode.Top + gbMode.Height + 12;
+        gbOptions.Width := frm.Width - 24;
+        gbOptions.Left := 6;
+        gbOptions.Caption := 'Options';
+        gbOptions.Height := 54;
+
         chkElric := TCheckBox.Create(gbOptions);
         chkElric.Parent := gbOptions;
         chkElric.Left := 16;
-        chkElric.Top := 61;
+        chkElric.Top := 25;
         chkElric.Width := 100;
         chkElric.Caption := 'Run Elric';
 
         cbResolution := TComboBox.Create(gbOptions);
         cbResolution.Parent := gbOptions;
         cbResolution.Left := rbOnlyMissing.Left + 60;
-        cbResolution.Top := 60;
+        cbResolution.Top := 24;
         cbResolution.Width := 50;
         cbResolution.Style := csDropDownList;
         cbResolution.Items.Assign(slResolutions);
@@ -314,34 +345,36 @@ begin
         cbResolution.ShowHint := True;
         CreateLabel(gbOptions, rbOnlyMissing.Left, cbResolution.Top + 3, 'Resolution');
 
-        btnStart := TButton.Create(gbOptions);
-        btnStart.Parent := gbOptions;
+        btnStart := TButton.Create(frm);
+        btnStart.Parent := frm;
         btnStart.Caption := 'Start';
         btnStart.ModalResult := mrOk;
-        btnStart.Top := cbResolution.Top + 50;
+        btnStart.Top := gbOptions.Top + gbOptions.Height + 24;
 
-        btnCancel := TButton.Create(gbOptions);
-        btnCancel.Parent := gbOptions;
+        btnCancel := TButton.Create(frm);
+        btnCancel.Parent := frm;
         btnCancel.Caption := 'Cancel';
         btnCancel.ModalResult := mrCancel;
         btnCancel.Top := btnStart.Top;
 
-        btnRuleEditor := TButton.Create(gbOptions);
-        btnRuleEditor.Parent := gbOptions;
-        btnRuleEditor.Caption := 'Rule Editor';
+        btnRuleEditor := TButton.Create(frm);
+        btnRuleEditor.Parent := frm;
+        btnRuleEditor.Caption := 'Rules';
         btnRuleEditor.OnClick := RuleEditor;
         btnRuleEditor.Width := 100;
         btnRuleEditor.Left := 8;
+        btnRuleEditor.Hint := 'Launches the Rule Editor.';
+        btnRuleEditor.ShowHint := True;
         btnRuleEditor.Top := btnStart.Top;
 
         btnStart.Left := gbOptions.Width - btnStart.Width - btnCancel.Width - 16;
         btnCancel.Left := btnStart.Left + btnStart.Width + 8;
 
-        pnl := TPanel.Create(gbOptions);
-        pnl.Parent := gbOptions;
-        pnl.Left := 8;
+        pnl := TPanel.Create(frm);
+        pnl.Parent := frm;
+        pnl.Left := 6;
         pnl.Top := btnStart.Top - 12;
-        pnl.Width := gbOptions.Width - 16;
+        pnl.Width := frm.Width - 24;
         pnl.Height := 2;
 
         frm.ActiveControl := btnStart;
@@ -350,12 +383,17 @@ begin
 
         chkElric.Checked := StrToBool(joConfig.S['RunElric']);
 
+        if joConfig.Contains('PluginName') then edPluginName.Text := joConfig.S['PluginName']
+        else edPluginName.Text := 'FaceGen Output';
+
         if frm.ShowModal <> mrOk then begin
             Result := False;
             Exit;
         end
         else Result := True;
 
+        sRealPlugin := edPluginName.Text;
+        joConfig.S['PluginName'] := sRealPlugin;
         bOnlyMissing := rbOnlyMissing.Checked;
         bQuickFaceFix := rbFaceGenPreset.Checked;
         bAll := rbAll.Checked;
@@ -404,17 +442,13 @@ begin
         lvRules.RowSelect := True;
         lvRules.DoubleBuffered := True;
         lvRules.Columns.Add.Caption := 'NPC or Plugin';
-        lvRules.Columns[0].Width := 360;
+        lvRules.Columns[0].Width := 450;
         lvRules.Columns.Add.Caption := 'Only NPCs Matching';
         lvRules.Columns[1].Width := 160;
-        lvRules.Columns.Add.Caption := 'Preset Add';
-        lvRules.Columns[2].Width := 110;
-        lvRules.Columns.Add.Caption := 'Preset Remove';
-        lvRules.Columns[3].Width := 110;
-        lvRules.Columns.Add.Caption := 'Missing';
-        lvRules.Columns[4].Width := 110;
-        lvRules.Columns.Add.Caption := 'Always';
-        lvRules.Columns[5].Width := 110;
+        lvRules.Columns.Add.Caption := 'Game Generates Face';
+        lvRules.Columns[2].Width := 160;
+        lvRules.Columns.Add.Caption := 'Creation Kit Generates Face';
+        lvRules.Columns[3].Width := 190;
         lvRules.OwnerData := True;
         lvRules.OnData := lvRulesData;
         lvRules.OnDblClick := lvRulesDblClick;
@@ -465,12 +499,13 @@ begin
     end;
 end;
 
-function EditRuleForm(var ruleType, key: string; var Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything, bEdit: Boolean): Boolean;
+function EditRuleForm(var ruleType, key, ChargenPreset, FacegenMode: string; var Exclusive, bEdit: Boolean): Boolean;
 var
     frmRule: TForm;
     pnl: TPanel;
     btnOk, btnCancel: TButton;
     chkExclusive: TCheckBox;
+    cbChargenPreset, cbFacegenMode: TComboBox;
 begin
   frmRule := TForm.Create(nil);
   try
@@ -507,39 +542,43 @@ begin
     chkExclusive.Top := cbkey.Top + 48;
     chkExclusive.Width := 150;
     chkExclusive.Caption := 'Only NPCs Matching';
+    chkExclusive.Hint := 'If any rule sets Only NPCs Matching to true,'
+        + #13#10 + 'then any NPC that does not match such a rule will.'
+        + #13#10 + 'not be processed.';
+    chkExclusive.ShowHint := True;
 
+    cbChargenPreset := TComboBox.Create(frmRule);
+    cbChargenPreset.Parent := frmRule;
+    cbChargenPreset.Name := 'cbChargenPreset';
+    cbChargenPreset.Items.Assign(slCharGenPreset);
+    cbChargenPreset.Left := chkExclusive.Left + chkExclusive.Width + 134;
+    cbChargenPreset.Top := chkExclusive.Top - 2;
+    cbChargenPreset.Width := 80;
+    cbChargenPreset.Style := csDropDownList;
+    cbChargenPreset.Hint := 'Sets the Is CharGen Face Preset flag.'
+        + #13#10 + 'If default, no change will be made.'
+        + #13#10 + 'If never, any NPC flagged as such will be unflagged,'
+        + #13#10 + 'allowing pregenerated facegen data to be used.'
+        + #13#10 + 'If always, adds the flag if missing. This is useful'
+        + #13#10 + 'when you either want to use the LooksMenu on an '
+        + #13#10 + 'NPC, or if the generated facegen is buggy.';
+    cbChargenPreset.ShowHint := True;
+    CreateLabel(frmRule, chkExclusive.Left + chkExclusive.Width + 16, cbChargenPreset.Top + 4, 'Game Generates Face:');
 
-    chkPresetAdd := TCheckBox.Create(frmRule);
-    chkPresetAdd.Parent := frmRule;
-    chkPresetAdd.Left := chkExclusive.Width + chkExclusive.Left + 16;
-    chkPresetAdd.Top := cbkey.Top + 48;
-    chkPresetAdd.Width := 200;
-    chkPresetAdd.Caption := 'Add Chargen Preset Flag';
-    chkPresetAdd.OnClick := ruleFormCheckboxHandler;
-
-    chkPresetRemove := TCheckBox.Create(frmRule);
-    chkPresetRemove.Parent := frmRule;
-    chkPresetRemove.Left := chkPresetAdd.Left;
-    chkPresetRemove.Top := chkPresetAdd.Top + 32;
-    chkPresetRemove.Width := 200;
-    chkPresetRemove.Caption := 'Remove Chargen Preset Flag';
-    chkPresetRemove.OnClick := ruleFormCheckboxHandler;
-
-    chkMissingOnly := TCheckBox.Create(frmRule);
-    chkMissingOnly.Parent := frmRule;
-    chkMissingOnly.Left := chkPresetRemove.Width + chkPresetRemove.Left + 16;
-    chkMissingOnly.Top := cbkey.Top + 48;
-    chkMissingOnly.Width := 200;
-    chkMissingOnly.Caption := 'Generate FaceGen if Missing';
-    chkMissingOnly.OnClick := ruleFormCheckboxHandler;
-
-    chkEverything := TCheckBox.Create(frmRule);
-    chkEverything.Parent := frmRule;
-    chkEverything.Left := chkMissingOnly.Left;
-    chkEverything.Top := chkMissingOnly.Top + 32;
-    chkEverything.Width := 200;
-    chkEverything.Caption := 'Generate FaceGen Always';
-    chkEverything.OnClick := ruleFormCheckboxHandler;
+    cbFacegenMode := TComboBox.Create(frmRule);
+    cbFacegenMode.Parent := frmRule;
+    cbFacegenMode.Name := 'cbFacegenMode';
+    cbFacegenMode.Items.Assign(slFaceGenMode);
+    cbFacegenMode.Left := cbChargenPreset.Left + cbChargenPreset.Width + 178;
+    cbFacegenMode.Top := cbChargenPreset.Top;
+    cbFacegenMode.Width := 120;
+    cbFacegenMode.Style := csDropDownList;
+    cbFacegenMode.Hint := 'VEFS will create facegen data with the Creation Kit.'
+        + #13#10 + 'If default, no change will be made.'
+        + #13#10 + 'If only missing, any NPC missing facegen data will be made.'
+        + #13#10 + 'If always, facegen data will always be made.';
+    cbFacegenMode.ShowHint := True;
+    CreateLabel(frmRule, cbChargenPreset.Left + cbChargenPreset.Width + 30, cbFacegenMode.Top + 4, 'Creation Kit Generates Face:');
 
     btnOk := TButton.Create(frmRule);
     btnOk.Parent := frmRule;
@@ -574,10 +613,8 @@ begin
 
     cbkey.Text := key;
     chkExclusive.Checked := Exclusive;
-    chkPresetAdd.Checked := PresetAdd;
-    chkPresetRemove.Checked := PresetRemove;
-    chkMissingOnly.Checked := MissingOnly;
-    chkEverything.Checked := Everything;
+    cbChargenPreset.ItemIndex := slCharGenPreset.IndexOf(ChargenPreset);
+    cbFacegenMode.ItemIndex := slFaceGenMode.IndexOf(FacegenMode);
 
     frmRule.ActiveControl := cbkey;
     frmRule.ScaleBy(uiScale, 100);
@@ -587,6 +624,7 @@ begin
     if frmRule.ShowModal <> mrOk then Exit;
 
     ruleType := slNPCPlugin[cbNPCPlugin.ItemIndex];
+    sLastRuleType := ruleType;
     if SameText(ruleType, 'NPC') then begin
         key := slNPCRecords[cbkey.ItemIndex];
     end
@@ -595,28 +633,13 @@ begin
     end;
 
     Exclusive := chkExclusive.Checked;
-    PresetAdd := chkPresetAdd.Checked;
-    PresetRemove := chkPresetRemove.Checked;
-    MissingOnly := chkMissingOnly.Checked;
-    Everything := chkEverything.Checked;
+    ChargenPreset := slCharGenPreset[cbChargenPreset.ItemIndex];
+    FacegenMode := slFaceGenMode[cbFacegenMode.ItemIndex];
 
     Result := True;
   finally
     frmRule.Free;
   end;
-end;
-
-procedure ruleFormCheckboxHandler(Sender: TObject);
-begin
-    if chkEverything.Checked then chkMissingOnly.Enabled := false;
-    if not chkEverything.Checked then chkMissingOnly.Enabled := true;
-    if chkMissingOnly.Checked then chkEverything.Enabled := false;
-    if not chkMissingOnly.Checked then chkEverything.Enabled := true;
-
-    if chkPresetRemove.Checked then chkPresetAdd.Enabled := false;
-    if not chkPresetRemove.Checked then chkPresetAdd.Enabled := true;
-    if chkPresetAdd.Checked then chkPresetRemove.Enabled := false;
-    if not chkPresetAdd.Checked then chkPresetRemove.Enabled := true;
 end;
 
 procedure NPCPluginChange(Sender: TObject);
@@ -643,10 +666,8 @@ begin
     key := joRules.Names[Item.Index];
     Item.Caption := key;
     Item.SubItems.Add(joRules.O[key].S['Exclusive']);
-    Item.SubItems.Add(joRules.O[key].S['Preset Add']);
-    Item.SubItems.Add(joRules.O[key].S['Preset Remove']);
-    Item.SubItems.Add(joRules.O[key].S['Missing Only']);
-    Item.SubItems.Add(joRules.O[key].S['Everything']);
+    Item.SubItems.Add(joRules.O[key].S['CharGen Preset']);
+    Item.SubItems.Add(joRules.O[key].S['FaceGen Mode']);
 end;
 
 procedure lvRulesDblClick(Sender: TObject);
@@ -663,25 +684,21 @@ procedure RulesMenuAddClick(Sender: TObject);
 }
 var
     idx: integer;
-    key, ruleType: string;
-    Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean;
+    key, ruleType, ChargenPreset, FacegenMode: string;
+    Exclusive: Boolean;
 begin
     key := '';
-    ruleType := 'Plugin';
+    ruleType := sLastRuleType;
     Exclusive := false;
-    PresetAdd := false;
-    PresetRemove := false;
-    MissingOnly := false;
-    Everything := false;
+    ChargenPreset := 'Default';
+    FacegenMode := 'Default';
 
-    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything, true) then Exit;
+    if not EditRuleForm(ruleType, key, ChargenPreset, FacegenMode, Exclusive, true) then Exit;
 
     joRules.O[key].S['Type'] := ruleType;
     joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
-    joRules.O[key].S['Preset Add'] := BoolToStr(PresetAdd);
-    joRules.O[key].S['Preset Remove'] := BoolToStr(PresetRemove);
-    joRules.O[key].S['Missing Only'] := BoolToStr(MissingOnly);
-    joRules.O[key].S['Everything'] := BoolToStr(Everything);
+    joRules.O[key].S['CharGen Preset'] := ChargenPreset;
+    joRules.O[key].S['FaceGen Mode'] := FacegenMode;
 
     joUserRules.O[key].Assign(joRules.O[key]);
     bUserRulesChanged := True;
@@ -696,8 +713,8 @@ procedure RulesMenuEditClick(Sender: TObject);
 }
 var
     idx: integer;
-    key, ruleType: string;
-    Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything: Boolean;
+    key, ruleType, ChargenPreset, FacegenMode: string;
+    Exclusive: Boolean;
 begin
     if not Assigned(lvRules.Selected) then Exit;
     idx := lvRules.Selected.Index;
@@ -705,19 +722,15 @@ begin
     key := joRules.Names[idx];
     ruleType := joRules.O[key].S['Type'];
     Exclusive := StrToBool(joRules.O[key].S['Exclusive']);
-    PresetAdd := StrToBool(joRules.O[key].S['Preset Add']);
-    PresetRemove := StrToBool(joRules.O[key].S['Preset Remove']);
-    MissingOnly := StrToBool(joRules.O[key].S['Missing Only']);
-    Everything := StrToBool(joRules.O[key].S['Everything']);
+    ChargenPreset := joRules.O[key].S['CharGen Preset'];
+    FacegenMode := joRules.O[key].S['FaceGen Mode'];
 
-    if not EditRuleForm(ruleType, key, Exclusive, PresetAdd, PresetRemove, MissingOnly, Everything, false) then Exit;
+    if not EditRuleForm(ruleType, key, ChargenPreset, FacegenMode, Exclusive, false) then Exit;
 
     joRules.O[key].S['Type'] := ruleType;
     joRules.O[key].S['Exclusive'] := BoolToStr(Exclusive);
-    joRules.O[key].S['Preset Add'] := BoolToStr(PresetAdd);
-    joRules.O[key].S['Preset Remove'] := BoolToStr(PresetRemove);
-    joRules.O[key].S['Missing Only'] := BoolToStr(MissingOnly);
-    joRules.O[key].S['Everything'] := BoolToStr(Everything);
+    joRules.O[key].S['CharGen Preset'] := ChargenPreset;
+    joRules.O[key].S['FaceGen Mode'] := FacegenMode;
 
     joUserRules.O[key].Assign(joRules.O[key]);
     bUserRulesChanged := True;
@@ -929,8 +942,11 @@ begin
             end;
         end;
 
+        //joRules.O[key].S['CharGen Preset'] := ChargenPreset;
+        //joRules.O[key].S['FaceGen Mode'] := FacegenMode;
+
         //Preset Add
-        PresetAdd := StrToBool(joRules.O[key].S['Preset Add']);
+        PresetAdd := SameText(joRules.O[key].S['CharGen Preset'], 'Always');
         if PresetAdd then begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slPresetAdd.Add(key)
@@ -940,7 +956,7 @@ begin
         end;
 
         //Preset Remove
-        PresetRemove := StrToBool(joRules.O[key].S['Preset Remove']);
+        PresetRemove := SameText(joRules.O[key].S['CharGen Preset'], 'Never');
         if PresetRemove then begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slPresetRemove.Add(key)
@@ -950,7 +966,7 @@ begin
         end;
 
         //Missing Only
-        MissingOnly := StrToBool(joRules.O[key].S['Missing Only']);
+        MissingOnly := SameText(joRules.O[key].S['FaceGen Mode'], 'Only If Missing');
         if MissingOnly then begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slMissingOnly.Add(key)
@@ -960,7 +976,7 @@ begin
         end;
 
         //Everything
-        Everything := StrToBool(joRules.O[key].S['Everything']);
+        Everything := SameText(joRules.O[key].S['FaceGen Mode'], 'Always');
         if Everything then begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slEverything.Add(key)
