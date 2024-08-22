@@ -11,8 +11,8 @@ var
     iPluginFile, iRealPlugin: IInterface;
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
-    tlRace, tlNpc, tlTxst, tlHdpt, tlCopyToReal: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures: TStringList;
+    tlRace, tlNpc, tlTxst, tlHdpt, tlCopyToReal, tlNPCid: TList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid: TStringList;
     slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig, joRules, joUserRules: TJsonObject;
@@ -96,6 +96,7 @@ begin
     tlNpc.Free;
     tlHdpt.Free;
     tlCopyToReal.Free;
+    tlNPCid.Free;
 
     slModels.Free;
     slTextures.Free;
@@ -117,6 +118,7 @@ begin
     slEverything.Free;
     slCharGenPreset.Free;
     slFaceGenMode.Free;
+    slNPCid.Free;
 
     joRules.Free;
     if bSaveUserRules and bUserRulesChanged then begin
@@ -138,6 +140,9 @@ begin
     tlNpc := TList.Create;
     tlHdpt := TList.Create;
     tlCopyToReal := TList.Create;
+    tlNPCid := TList.Create;
+
+    slNPCid := TStringList.Create;
 
     slModels := TStringList.Create;
     slModels.Sorted := True;
@@ -1882,15 +1887,24 @@ end;
 
 function NPC_id(r: IInterface): string;
 var
-    relativeFormid, editorID, fullName, filename: string;
+    relativeFormid, editorID, fullName, filename, id: string;
+    idx: integer;
 begin
+    idx := tlNPCid.IndexOf(r);
+    if idx > -1 then begin
+        Result := slNPCid[idx];
+        Exit;
+    end;
     editorId := GetElementEditValues(r, 'EDID');
     if ElementExists(r, 'FULL') then
         fullName := GetElementEditValues(r, 'FULL') + '     '
     else fullName := '';
     filename := GetFileName(MasterOrSelf(r));
     relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
-    Result := fullName + editorId + '     [ ' + filename + '\' + relativeFormid + ' ]';
+    id := fullName + editorId + '     [ ' + filename + '\' + relativeFormid + ' ]';
+    tlNPCid.Add(r);
+    slNPCid.Add(id);
+    Result := id;
 end;
 
 procedure ListStringsInStringList(sl: TStringList);
