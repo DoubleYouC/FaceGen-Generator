@@ -1161,20 +1161,17 @@ procedure CollectRecords;
     Collects records.
 }
 var
-    i, j, k, l, m, idx, editorInc: integer;
-    editorId, filename, recordId, masterFile, material, model, newEditorId, relativeFormid, texture, tri, sex: string;
-    e, r, npc, race, headpart, eModt, eTextures, eMaterials, eParts, eMaleTints, eTintGroup, eOptions, eOption: IInterface;
+    i, j, idx: integer;
+    filename, recordId, sex: string;
+    r, race: IInterface;
     g: IwbGroupRecord;
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
-    slRace, slNpc, slTxst, slHdpt, slRaceSex, slEditorIds: TStringList;
+    slRace, slNpc, slRaceSex: TStringList;
     bHadFaceGenNPC: Boolean;
 begin
     slRace := TStringList.Create;
     slNpc := TStringList.Create;
-    slHdpt := TStringList.Create;
-    slTxst := TStringList.Create;
-    slEditorIds := TStringList.Create;
 
     slRaceSex := TStringList.Create;
     slRaceSex.Sorted := True;
@@ -1225,7 +1222,6 @@ begin
             if GetElementEditValues(r, 'DATA\Flags\FaceGen Head') <> '1' then continue;
             slRace.Add(recordId);
             tlRace.Add(r);
-            //AddMessage(recordID);
         end;
 
         //NPC_
@@ -1244,15 +1240,8 @@ begin
             idx := tlRace.IndexOf(race);
             if idx = -1 then continue;
             if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
-            //if GetElementEditValues(r, 'ACBS\Flags\Is CharGen Face Preset') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
             if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
-
-            // if bOnlyMissing or bQuickFaceFix then begin
-            //     masterFile := GetFileName(MasterOrSelf(r));
-            //     relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
-            //     if FaceGenExists(relativeFormid, masterFile) then continue;
-            // end;
             slNpc.Add(recordId);
             slNPCRecords.Add(NPC_id(r));
             tlNpc.Add(r);
@@ -1263,21 +1252,33 @@ begin
             slRaceSex.Add(ShortName(race) + #9 + sex + #9 + ShortName(r));
             joFaces.O['races'].O[ShortName(race)].S[sex] := true;
             joFaces.O['races'].O[ShortName(race)].A[sex + '_NPCs'].Add(ShortName(r));
-
-
-            // AddRequiredElementMasters(r, iPluginFile, False, True);
-            // SortMasters(iPluginFile);
-            // npc := wbCopyElementToFile(r, iPluginFile, False, True);
-
-            // if not bQuickFaceFix then continue;
-            // SetElementEditValues(npc, 'ACBS\Flags\Is CharGen Face Preset', '1');
-
-
-            //AddMessage(recordID);
         end;
         if bHadFaceGenNPC then slPluginFiles.Add(filename);
+    end;
+    ListStringsInStringList(slRaceSex);
 
-        //Hdpt
+    slRace.Free;
+    slNpc.Free;
+    slRaceSex.Free;
+end;
+
+procedure ProcessHeadParts;
+{
+    Process Head Parts
+}
+var
+    i, j, k, editorInc, idx: integer;
+    editorId, material, model, newEditorId, recordId, tri: string;
+    g: IwbGroupRecord;
+    f: IwbFile;
+    e, r, eMaterials, eParts, headpart: IInterface;
+    slHdpt, slEditorIds: TStringList;
+begin
+    slHdpt := TStringList.Create;
+    slEditorIds := TStringList.Create;
+
+    for i := 0 to Pred(FileCount) do begin
+        f := FileByIndex(i);
         g := GroupBySignature(f, 'HDPT');
         for j := 0 to Pred(ElementCount(g)) do begin
             r := WinningOverride(ElementByIndex(g, j));
@@ -1290,18 +1291,12 @@ begin
                 slAssets.Add(model);
             end;
             if ElementExists(r, 'Model\MODT') then begin
-                // eTextures := ElementByPath(r, 'Model\MODT\Textures');
-                // for k := 0 to Pred(ElementCount(eTextures)) do begin
-                //     e := ElementByIndex(eTextures, k);
-                //     AddTexture(recordId, GetSummary(e));
-                // end;
                 eMaterials := ElementByPath(r, 'Model\MODT\Materials');
                 for k := 0 to Pred(ElementCount(eMaterials)) do begin
                     e := ElementByIndex(eMaterials, k);
                     material := wbNormalizeResourceName(GetSummary(e), resMaterial);
                     slMaterials.Add(material);
                     slAssets.Add(material);
-                    //AddMaterialTextures(material);
                 end;
             end;
             if ElementExists(r, 'Parts') then begin
@@ -1316,7 +1311,7 @@ begin
             slHdpt.Add(recordId);
             tlHdpt.Add(r);
             editorId := GetElementEditValues(r, 'EDID');
-            newEditorId := StringReplace(editorid, ' ', '', [rfReplaceAll, rfIgnoreCase]);
+            newEditorId := StringReplace(editorId, ' ', '', [rfReplaceAll, rfIgnoreCase]);
             newEditorId := StringReplace(newEditorId, '+', '', [rfReplaceAll, rfIgnoreCase]);
             newEditorId := StringReplace(newEditorId, '=', '', [rfReplaceAll, rfIgnoreCase]);
             editorInc := 0;
@@ -1334,51 +1329,10 @@ begin
             bNeedPlugin := true;
             SetElementEditValues(headpart, 'EDID', newEditorId);
             tlCopyToReal.Add(headpart);
-
-            //AddMessage(recordID);
         end;
-
-        //TXST
-{         g := GroupBySignature(f, 'TXST');
-        for j := 0 to Pred(ElementCount(g)) do begin
-            r := WinningOverride(ElementByIndex(g, j));
-            recordId := GetFileName(r) + #9 + ShortName(r);
-            idx := slTxst.IndexOf(recordId);
-            if idx > -1 then continue;
-            if GetElementEditValues(r, 'DNAM - Flags\Facegen Textures') <> '1' then continue;
-
-            if ElementExists(r, 'Textures (RGB/A)\TX00') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX00'));
-            end;
-            if ElementExists(r, 'Textures (RGB/A)\TX01') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX01'));
-            end;
-            if ElementExists(r, 'Textures (RGB/A)\TX07') then begin
-                AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX07'));
-            end;
-
-            if ElementExists(r, 'MNAM') then begin
-                material := wbNormalizeResourceName(GetElementEditValues(r, 'MNAM'), resMaterial);
-                slMaterials.Add(material);
-                slAssets.Add(material);
-                AddMaterialTextures(material);
-            end;
-
-            slTxst.Add(recordId);
-            tlTxst.Add(r);
-            //AddMessage(recordID);
-        end; }
     end;
-    //ListStringsInStringList(slAssets);
-    //ListStringsInStringList(slNPC);
-    ListStringsInStringList(slRaceSex);
-
-    slRace.Free;
-    slNpc.Free;
-    slHdpt.Free;
-    slTxst.Free;
-    slRaceSex.Free;
     slEditorIds.Free;
+    slHdpt.Free;
 end;
 
 procedure ProcessRecords;
@@ -1389,6 +1343,8 @@ var
     i, count: integer;
     slNpc: TStringList;
 begin
+    ProcessHeadParts;
+
     slNpc := TStringList.Create;
     for i := 0 to Pred(tlRace.Count) do begin
         ProcessRace(ObjectToElement(tlRace[i]));
