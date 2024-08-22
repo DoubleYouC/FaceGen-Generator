@@ -1205,17 +1205,6 @@ begin
             CleanMasters(iPluginFile);
             AddMasterIfMissing(iPluginFile, 'Fallout4.esm');
         end;
-    end;
-
-    if not Assigned(iPluginFile) then begin
-        iPluginFile := AddNewFileName(sPatchName, True);
-        AddMasterIfMissing(iPluginFile, 'Fallout4.esm');
-    end;
-
-    for i := 0 to Pred(FileCount) do begin
-        f := FileByIndex(i);
-        filename := GetFileName(f);
-        if SameText(filename, 'Fallout4.exe') then continue;
 
         //RACE
         g := GroupBySignature(f, 'RACE');
@@ -1228,6 +1217,15 @@ begin
             slRace.Add(recordId);
             tlRace.Add(r);
         end;
+    end;
+
+    if not Assigned(iPluginFile) then begin
+        iPluginFile := AddNewFileName(sPatchName, True);
+        AddMasterIfMissing(iPluginFile, 'Fallout4.esm');
+    end;
+
+    for i := 0 to Pred(FileCount) do begin
+        f := FileByIndex(i);
 
         //NPC_
         g := GroupBySignature(f, 'NPC_');
