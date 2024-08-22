@@ -1226,6 +1226,7 @@ begin
 
     for i := 0 to Pred(FileCount) do begin
         f := FileByIndex(i);
+        filename := GetFileName(f);
 
         //NPC_
         g := GroupBySignature(f, 'NPC_');
@@ -1290,6 +1291,8 @@ begin
             if idx > -1 then continue;
             if ElementExists(r, 'Model\MODL') then begin
                 model := wbNormalizeResourceName(GetElementEditValues(r, 'Model\MODL'), resMesh);
+                if not ResourceExists(model) then continue;
+                HairMeshData(model);
                 slModels.Add(model);
                 slAssets.Add(model);
             end;
@@ -1424,6 +1427,7 @@ begin
 
 
     AddRequiredElementMasters(r, iPluginFile, False, True);
+    AddMasterIfMissing(masterFile);
     SortMasters(iPluginFile);
     npc := wbCopyElementToFile(r, iPluginFile, False, True);
     bNeedPlugin := true;
@@ -1748,6 +1752,43 @@ begin
         Result := IntToStr(height) + ' x ' + IntToStr(width);
     finally
         dds.Free;
+    end;
+end;
+
+function HairMeshData(f: string): Boolean;
+{
+    Checks a mesh resource to see if its UVs are outside of range.
+}
+var
+    j: integer;
+    nif: TwbNifFile;
+    bWasChanged: boolean;
+    shaders: TList;
+    shader: TwbNifBlock;
+begin
+    nif := TwbNifFile.Create;
+    shaders := TList.Create;
+    bWasChanged := false;
+    try
+        nif.LoadFromResource(f);
+        nif.BlocksByType('BSLightingShaderProperty', True, shaders);
+        for j := 0 to Pred(shaders.Count) do begin
+            shader := TwbNifBlock(shaders[j]);
+
+            if shader.NativeValues['Shader Flags 1\Own_Emit'] = 0 then begin
+                shader.NativeValues['Shader Flags 1\Own_Emit'] := 1;
+                bWasChanged := true;
+            end;
+        end;
+
+        if bWasChanged then begin
+            nif.SaveToFile(wbDataPath + f);
+            AddMessage('Updated: ' + wbDataPath + f);
+        end;
+
+    finally
+        nif.free;
+        shaders.free;
     end;
 end;
 
