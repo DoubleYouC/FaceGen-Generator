@@ -1766,7 +1766,7 @@ end;
 
 function HairMeshData(f: string): Boolean;
 {
-    Checks a mesh resource to see if its UVs are outside of range.
+    Gets headpart mesh data.
 }
 var
     j: integer;
