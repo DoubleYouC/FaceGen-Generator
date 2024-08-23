@@ -11,8 +11,8 @@ var
     iPluginFile, iRealPlugin: IInterface;
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
-    tlRace, tlNpc, tlTxst, tlHdpt, tlCopyToReal, tlNPCid: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid: TStringList;
+    tlRace, tlNpc, tlTxst, tlCopyToReal, tlNPCid: TList;
+    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds: TStringList;
     slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig, joRules, joUserRules: TJsonObject;
@@ -94,7 +94,6 @@ function Finalize: integer;
 begin
     tlRace.Free;
     tlNpc.Free;
-    tlHdpt.Free;
     tlCopyToReal.Free;
     tlNPCid.Free;
 
@@ -105,6 +104,8 @@ begin
     slPluginFiles.Free;
     slNPCRecords.Free;
     slNPCPlugin.Free;
+    slHdpt.Free;
+    slEditorIds.Free;
 
     slDiffuseTextures.Free;
     slNormalTextures.Free;
@@ -138,11 +139,12 @@ procedure CreateObjects;
 begin
     tlRace := TList.Create;
     tlNpc := TList.Create;
-    tlHdpt := TList.Create;
     tlCopyToReal := TList.Create;
     tlNPCid := TList.Create;
 
     slNPCid := TStringList.Create;
+    slHdpt := TStringList.Create;
+    slEditorIds := TStringList.Create;
 
     slModels := TStringList.Create;
     slModels.Sorted := True;
@@ -1266,84 +1268,6 @@ begin
     slRaceSex.Free;
 end;
 
-procedure ProcessHeadParts;
-{
-    Process Head Parts
-}
-var
-    i, j, k, editorInc, idx: integer;
-    editorId, material, model, newEditorId, recordId, tri: string;
-    g: IwbGroupRecord;
-    f: IwbFile;
-    e, r, eMaterials, eParts, headpart: IInterface;
-    slHdpt, slEditorIds: TStringList;
-begin
-    slHdpt := TStringList.Create;
-    slEditorIds := TStringList.Create;
-
-    for i := 0 to Pred(FileCount) do begin
-        f := FileByIndex(i);
-        g := GroupBySignature(f, 'HDPT');
-        for j := 0 to Pred(ElementCount(g)) do begin
-            r := WinningOverride(ElementByIndex(g, j));
-            recordId := GetFileName(r) + #9 + ShortName(r);
-            idx := slHdpt.IndexOf(recordId);
-            if idx > -1 then continue;
-            if ElementExists(r, 'Model\MODL') then begin
-                model := wbNormalizeResourceName(GetElementEditValues(r, 'Model\MODL'), resMesh);
-                if not ResourceExists(model) then continue;
-                if HairMeshData(model) then begin
-                    AddMessage(recordId + #9 + 'Has Cloth Data' + #9 + model);
-                    joFaces.O['Headparts with Cloth Data'].O[IntToHex(GetLoadOrderFormID(r), 8)].S['model'] := model;
-                end;
-                slModels.Add(model);
-                slAssets.Add(model);
-            end;
-            if ElementExists(r, 'Model\MODT') then begin
-                eMaterials := ElementByPath(r, 'Model\MODT\Materials');
-                for k := 0 to Pred(ElementCount(eMaterials)) do begin
-                    e := ElementByIndex(eMaterials, k);
-                    material := wbNormalizeResourceName(GetSummary(e), resMaterial);
-                    slMaterials.Add(material);
-                    slAssets.Add(material);
-                end;
-            end;
-            if ElementExists(r, 'Parts') then begin
-                eParts := ElementByPath(r, 'Parts');
-                for k := 0 to Pred(ElementCount(eParts)) do begin
-                    e := ElementbyIndex(eParts, k);
-                    tri := wbNormalizeResourceName(GetElementEditValues(e, 'NAM1'), resMesh);
-                    slModels.Add(tri);
-                    slAssets.Add(tri);
-                end;
-            end;
-            slHdpt.Add(recordId);
-            tlHdpt.Add(r);
-            editorId := GetElementEditValues(r, 'EDID');
-            newEditorId := StringReplace(editorId, ' ', '', [rfReplaceAll, rfIgnoreCase]);
-            newEditorId := StringReplace(newEditorId, '+', '', [rfReplaceAll, rfIgnoreCase]);
-            newEditorId := StringReplace(newEditorId, '=', '', [rfReplaceAll, rfIgnoreCase]);
-            editorInc := 0;
-            idx := slEditorIds.IndexOf(newEditorId);
-            while idx <> -1 do begin
-                editorInc := editorInc + 1;
-                newEditorId := newEditorId + 'fix' + IntToStr(editorInc);
-                idx := slEditorIds.IndexOf(newEditorId);
-            end;
-            slEditorIds.Add(newEditorId);
-            if SameText(editorId, newEditorId) then continue;
-            AddRequiredElementMasters(r, iPluginFile, False, True);
-            SortMasters(iPluginFile);
-            headpart := wbCopyElementToFile(r, iPluginFile, False, True);
-            bNeedPlugin := true;
-            SetElementEditValues(headpart, 'EDID', newEditorId);
-            tlCopyToReal.Add(headpart);
-        end;
-    end;
-    slEditorIds.Free;
-    slHdpt.Free;
-end;
-
 procedure ProcessRecords;
 {
     Process Records.
@@ -1352,8 +1276,6 @@ var
     i, count: integer;
     slNpc: TStringList;
 begin
-    ProcessHeadParts;
-
     slNpc := TStringList.Create;
     for i := 0 to Pred(tlRace.Count) do begin
         ProcessRace(ObjectToElement(tlRace[i]));
@@ -1375,15 +1297,87 @@ begin
     end;
 end;
 
+function ProcessHeadPart(r: IInterface): boolean;
+{
+    Process Head Parts
+}
+var
+    k, editorInc, idx: integer;
+    editorId, material, model, newEditorId, recordId, tri, loadOrderFormId: string;
+    g: IwbGroupRecord;
+    f: IwbFile;
+    e, eMaterials, eParts, headpart: IInterface;
+begin
+    Result := false;
+    recordId := GetFileName(r) + #9 + ShortName(r);
+    loadOrderFormId := IntToHex(GetLoadOrderFormID(r), 8);
+    if joFaces.O['Headparts with Cloth Data'].Contains(loadOrderFormId) then begin
+        Result := true;
+        Exit;
+    end;
+    idx := slHdpt.IndexOf(recordId);
+    if idx > -1 then Exit;
+    if ElementExists(r, 'Model\MODL') then begin
+        model := wbNormalizeResourceName(GetElementEditValues(r, 'Model\MODL'), resMesh);
+        if ResourceExists(model) then begin
+            if HairMeshData(model) then begin
+                AddMessage(recordId + #9 + 'Has Cloth Data' + #9 + model);
+                joFaces.O['Headparts with Cloth Data'].O[loadOrderFormId].S['model'] := model;
+                Result := true;
+            end;
+            slModels.Add(model);
+            slAssets.Add(model);
+        end;
+    end;
+    if ElementExists(r, 'Model\MODT') then begin
+        eMaterials := ElementByPath(r, 'Model\MODT\Materials');
+        for k := 0 to Pred(ElementCount(eMaterials)) do begin
+            e := ElementByIndex(eMaterials, k);
+            material := wbNormalizeResourceName(GetSummary(e), resMaterial);
+            slMaterials.Add(material);
+            slAssets.Add(material);
+        end;
+    end;
+    if ElementExists(r, 'Parts') then begin
+        eParts := ElementByPath(r, 'Parts');
+        for k := 0 to Pred(ElementCount(eParts)) do begin
+            e := ElementbyIndex(eParts, k);
+            tri := wbNormalizeResourceName(GetElementEditValues(e, 'NAM1'), resMesh);
+            slModels.Add(tri);
+            slAssets.Add(tri);
+        end;
+    end;
+    slHdpt.Add(recordId);
+    editorId := GetElementEditValues(r, 'EDID');
+    newEditorId := StringReplace(editorId, ' ', '', [rfReplaceAll, rfIgnoreCase]);
+    newEditorId := StringReplace(newEditorId, '+', '', [rfReplaceAll, rfIgnoreCase]);
+    newEditorId := StringReplace(newEditorId, '=', '', [rfReplaceAll, rfIgnoreCase]);
+    editorInc := 0;
+    idx := slEditorIds.IndexOf(newEditorId);
+    while idx <> -1 do begin
+        editorInc := editorInc + 1;
+        newEditorId := newEditorId + 'fix' + IntToStr(editorInc);
+        idx := slEditorIds.IndexOf(newEditorId);
+    end;
+    slEditorIds.Add(newEditorId);
+    if SameText(editorId, newEditorId) then Exit;
+    AddRequiredElementMasters(r, iPluginFile, False, True);
+    SortMasters(iPluginFile);
+    headpart := wbCopyElementToFile(r, iPluginFile, False, True);
+    bNeedPlugin := true;
+    SetElementEditValues(headpart, 'EDID', newEditorId);
+    tlCopyToReal.Add(headpart);
+end;
+
 procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
 {
     Process NPC
 }
 var
     masterFile, relativeFormid, sn: string;
-    npc, masterRecord, npcnew: IInterface;
+    e, headparts, npc, masterRecord, npcnew: IInterface;
     bRemovePreset, bAddPreset, bMissingHere, bAllHere, bWasChargenFacePreset: Boolean;
-    idx: integer;
+    i, idx: integer;
 begin
     bRemovePreset := false;
     bAddPreset := false;
@@ -1427,7 +1421,19 @@ begin
             end;
         end;
     end;
+    if ElementExists(r, 'Head Parts') then begin
+        headparts := ElementByPath(r, 'Head Parts');
+        for i := 0 to Pred(ElementCount(headparts)) do begin
+            e := WinningOverride(LinksTo(ElementbyIndex(headparts, i)));
+            if ProcessHeadPart(e) then begin
+                joFaces.O['NPCsToPatch'].O['Meshes\Actors\Character\FaceGenData\FaceGeom\' + masterFile
+                    + '\' + relativeFormid + '.nif'].S['headpart'] := IntToHex(GetLoadOrderFormID(e), 8);
+            end;
+        end;
+    end;
 
+
+    //Add NPC to patch
 
     AddRequiredElementMasters(r, iPluginFile, False, True);
     AddMasterIfMissing(iPluginFile, masterFile);
