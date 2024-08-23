@@ -1292,7 +1292,10 @@ begin
             if ElementExists(r, 'Model\MODL') then begin
                 model := wbNormalizeResourceName(GetElementEditValues(r, 'Model\MODL'), resMesh);
                 if not ResourceExists(model) then continue;
-                HairMeshData(model);
+                if HairMeshData(model) then begin
+                    AddMessage(recordId + #9 + 'Has Cloth Data' + #9 + model);
+                    joFaces.O['Headparts with Cloth Data'].O[IntToHex(GetLoadOrderFormID(r), 8)].S['model'] := model;
+                end;
                 slModels.Add(model);
                 slAssets.Add(model);
             end;
@@ -1427,7 +1430,7 @@ begin
 
 
     AddRequiredElementMasters(r, iPluginFile, False, True);
-    AddMasterIfMissing(masterFile);
+    AddMasterIfMissing(iPluginFile, masterFile);
     SortMasters(iPluginFile);
     npc := wbCopyElementToFile(r, iPluginFile, False, True);
     bNeedPlugin := true;
@@ -1763,24 +1766,26 @@ var
     j: integer;
     nif: TwbNifFile;
     bWasChanged: boolean;
-    shaders: TList;
-    shader: TwbNifBlock;
+    block: TwbNifBlock;
 begin
     nif := TwbNifFile.Create;
-    shaders := TList.Create;
     bWasChanged := false;
+    Result := false;
     try
         nif.LoadFromResource(f);
-        nif.BlocksByType('BSLightingShaderProperty', True, shaders);
-        for j := 0 to Pred(shaders.Count) do begin
-            shader := TwbNifBlock(shaders[j]);
+        for j := 0 to Pred(nif.BlocksCount) do begin
+            block := nif.Blocks[j];
 
-            if shader.NativeValues['Shader Flags 1\Own_Emit'] = 0 then begin
-                shader.NativeValues['Shader Flags 1\Own_Emit'] := 1;
-                bWasChanged := true;
-            end;
+            //Add Own Emit if missing
+            if block.BlockType = 'BSLightingShaderProperty' then begin
+                if block.NativeValues['Shader Flags 1\Own_Emit'] = 0 then begin
+                    nif.SaveToFile(wbDataPath + f + '.bak');
+                    block.NativeValues['Shader Flags 1\Own_Emit'] := 1;
+                    bWasChanged := true;
+                end;
+            end
+            else if block.BlockType = 'BSClothExtraData' then Result := true; //Check for BSClothExtraData
         end;
-
         if bWasChanged then begin
             nif.SaveToFile(wbDataPath + f);
             AddMessage('Updated: ' + wbDataPath + f);
@@ -1788,7 +1793,6 @@ begin
 
     finally
         nif.free;
-        shaders.free;
     end;
 end;
 
