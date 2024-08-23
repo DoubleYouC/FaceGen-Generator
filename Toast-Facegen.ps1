@@ -296,7 +296,7 @@ if (-not ('WindowHelper' -as [Type])) {
 # Main script execution
 try {
     $fo4EditExe = GetOrSelectxEditPath
-    # $fo4EditProcessName = [System.IO.Path]::GetFileNameWithoutExtension($fo4EditExe)
+    $fo4EditProcessName = [System.IO.Path]::GetFileNameWithoutExtension($fo4EditExe)
     $script:PluginName = [string]$script:configfile.PluginName
     if (!($PluginName)) { $script:PluginName="FaceGen Output" }
     $script:RunElric = [string]$script:configFile.RunElric
@@ -477,6 +477,18 @@ try {
     catch {
         Start-Sleep -Seconds 60
         Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse -Force -ErrorAction Stop
+    }
+
+    $fixfacepas = Join-Path -Path $scriptDir -ChildPath "Edit Scripts\FixFacegen.pas"
+    $FixMeshProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-script:`"$fixfacepas`" -autoload -autoexit -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
+    if (!($FixMeshProcess.HasExited)) {
+        Wait-Process -InputObject $FixMeshProcess
+    }
+    try {
+        Get-Process -Name $fo4EditProcessName -ErrorAction Stop
+        Read-Host "Press Any Key after xEdit has closed"
+    } catch {
+        Write-Host "xEdit has exited."
     }
 
 
