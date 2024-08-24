@@ -1167,7 +1167,7 @@ var
 begin
     for i := 0 to Pred(sl.Count) do begin
         f := sl[i];
-        folder := ExtractFilePath(f) + 'FGP\';
+        folder := ExtractFilePath(f);
         filename := ExtractFileName(f);
         s := sVEFSDir + '\Temp\' + folder + filename;
         if f = '' then continue;
