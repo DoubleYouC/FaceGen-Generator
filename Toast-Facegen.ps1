@@ -470,17 +470,22 @@ try {
         Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
         Write-Host "`"$script:tempfolder`" was deleted automatically"
     }
-    #Copy meshes to temp folder
-    try {
-        Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse -Force -ErrorAction Stop
-    }
-    catch {
-        Start-Sleep -Seconds 60
-        Copy-Item "$script:FacegenMeshes" -Destination "$script:tempFaceGenMeshes" -Recurse -Force -ErrorAction Stop
+
+    #Create empty mesh directories
+    New-Item -ItemType "directory" -Path $tempFaceGenMeshes
+    $files = Get-ChildItem $FacegenMeshes -Recurse -Filter *.nif
+    foreach ($f in $files){
+        Set-Location $FacegenMeshes
+        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
+        $relativepath = $relativepath.ToString().Substring(2)
+        $outputpath = Join-Path $tempFaceGenMeshes $relativepath
+        if (!(Test-Path -Path $outputpath)){
+            New-Item -ItemType "directory" -Path $outputpath
+        }
     }
 
     $fixfacepas = Join-Path -Path $scriptDir -ChildPath "Edit Scripts\FixFacegen.pas"
-    $FixMeshProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-script:`"$fixfacepas`" -autoload -autoexit -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
+    $FixMeshProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-autoload -script:`"$fixfacepas`" -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
     if (!($FixMeshProcess.HasExited)) {
         Wait-Process -InputObject $FixMeshProcess
     }

@@ -25,6 +25,7 @@ begin
     joFaces := TJsonObject.Create;
     joConfig := TJsonObject.Create;
     CheckLaunchArguments;
+    CopyFaces;
     FixFaces;
     Result := 0;
 end;
@@ -37,6 +38,25 @@ begin
     joFaces.Free;
     joConfig.Free;
     Result := 0;
+end;
+
+procedure CopyFaces;
+var
+    i: integer;
+    key: string;
+    nif: TwbNifFile;
+begin
+    for i := 0 to Pred(joFaces.A['NPCsToCopy'].Count) do begin
+        key := joFaces.A['NPCsToCopy'].S[i];
+        AddMessage('Copying ' + key + ' to ' + sVEFSDir + '\Temp\' + key);
+        nif := TwbNifFile.Create;
+        try
+            nif.LoadFromResource(key);
+            nif.SaveToFile(sVEFSDir + '\Temp\' + key);
+        finally
+            nif.free;
+        end;
+    end;
 end;
 
 procedure FixFaces;
@@ -95,8 +115,8 @@ begin
 
             if block.BlockType = 'BSClothExtraData' then begin
                 block.Assign(cloth);
-                nif.SaveToFile(wbDataPath + toNif);
-                AddMessage('Updated: ' + wbDataPath + toNif);
+                nif.SaveToFile(sVEFSDir + '\Temp\' + toNif);
+                AddMessage('Updated: ' + sVEFSDir + '\Temp\' + toNif);
                 break;
             end;
         end;

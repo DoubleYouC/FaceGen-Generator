@@ -964,7 +964,7 @@ begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slNPCMatches.Add(key)
             else begin
-                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slNPCMatches.Add(joFaces.O[key].A['npcs'].S[c]);
+                for c := 0 to Pred(joFaces.O['plugins'].O[key].A['npcs'].Count) do slNPCMatches.Add(joFaces.O['plugins'].O[key].A['npcs'].S[c]);
             end;
         end;
 
@@ -977,7 +977,7 @@ begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slPresetAdd.Add(key)
             else begin
-                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slPresetAdd.Add(joFaces.O[key].A['npcs'].S[c]);
+                for c := 0 to Pred(joFaces.O['plugins'].O[key].A['npcs'].Count) do slPresetAdd.Add(joFaces.O['plugins'].O[key].A['npcs'].S[c]);
             end;
         end;
 
@@ -987,7 +987,7 @@ begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slPresetRemove.Add(key)
             else begin
-                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slPresetRemove.Add(joFaces.O[key].A['npcs'].S[c]);
+                for c := 0 to Pred(joFaces.O['plugins'].O[key].A['npcs'].Count) do slPresetRemove.Add(joFaces.O['plugins'].O[key].A['npcs'].S[c]);
             end;
         end;
 
@@ -997,7 +997,7 @@ begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slMissingOnly.Add(key)
             else begin
-                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slMissingOnly.Add(joFaces.O[key].A['npcs'].S[c]);
+                for c := 0 to Pred(joFaces.O['plugins'].O[key].A['npcs'].Count) do slMissingOnly.Add(joFaces.O['plugins'].O[key].A['npcs'].S[c]);
             end;
         end;
 
@@ -1007,7 +1007,7 @@ begin
             ruleType := joRules.O[key].S['Type'];
             if ruleType = 'NPC' then slEverything.Add(key)
             else begin
-                for c := 0 to Pred(joFaces.O[key].A['npcs'].Count) do slEverything.Add(joFaces.O[key].A['npcs'].S[c]);
+                for c := 0 to Pred(joFaces.O['plugins'].O[key].A['npcs'].Count) do slEverything.Add(joFaces.O['plugins'].O[key].A['npcs'].S[c]);
             end;
         end;
     end;
@@ -1071,10 +1071,12 @@ var
     slArchivesToAdd, slArchivedFiles: TStringList;
     slContainers: TwbFastStringList;
     i, j, idx: integer;
-    f, archive, masterFile: string;
+    f, s, archive, filename, folder, masterFile: string;
+    joTextureContainer: TJsonObject;
 begin
     slContainers := TwbFastStringList.Create;
     slArchivesToAdd := TStringList.Create;
+    joTextureContainer := TJsonObject.Create;
 
     ResourceContainerList(slContainers);
 
@@ -1122,6 +1124,12 @@ begin
                         AddMasterIfMissing(iPluginFile, masterFile);
                         SortMasters(iPluginFile);
                     end;
+                    if slTextures.IndexOf(f) > -1 then begin
+                        joTextureContainer.O[f].S['container'] := slContainers[i];
+                    end;
+                    if slTintTextures.IndexOf(f) > -1 then begin
+                        joTextureContainer.O[f].S['container'] := slContainers[i];
+                    end;
                     break;
                 end;
             end;
@@ -1133,6 +1141,32 @@ begin
 
     slArchivesToAdd.Free;
     slContainers.Free;
+
+    //add textures to json for conversion
+    for i := 0 to Pred(slTextures.Count) do begin
+        f := slTextures[i];
+        folder := ExtractFilePath(f) + 'FGP\';
+        filename := ExtractFileName(f);
+        s := sVEFSDir + '\Temp\' + folder + filename;
+        if f = '' then continue;
+        joFaces.A['textures'].Add(s);
+        Addmessage('Copying' + #9 + f + #9 + ' to ' + #9 + s);
+        EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
+        ResourceCopy(joTextureContainer.O[LowerCase(f)].S['container'], f, s)
+    end;
+    for i := 0 to Pred(slTintTextures.Count) do begin
+        f := slTintTextures[i];
+        folder := ExtractFilePath(f) + 'FGP\';
+        filename := ExtractFileName(f);
+        s := sVEFSDir + '\Temp\' + folder + filename;
+        if f = '' then continue;
+        joFaces.A['tint_textures'].Add(s);
+        Addmessage('Copying' + #9 + f + #9 + ' to ' + #9 + s);
+        EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
+        ResourceCopy(joTextureContainer.O[LowerCase(f)].S['container'], f, s)
+    end;
+
+    joTextureContainer.Free;
 end;
 
 procedure CreateRealPlugin;
@@ -1239,7 +1273,7 @@ begin
             idx := slNpc.IndexOf(recordId);
             if idx > -1 then begin
                 bHadFaceGenNPC := true;
-                joFaces.O[filename].A['npcs'].Add(NPC_id(r));
+                joFaces.O['plugins'].O[filename].A['npcs'].Add(NPC_id(r));
                 continue;
             end;
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
@@ -1251,7 +1285,7 @@ begin
             slNpc.Add(recordId);
             slNPCRecords.Add(NPC_id(r));
             tlNpc.Add(r);
-            joFaces.O[filename].A['npcs'].Add(NPC_id(r));
+            joFaces.O['plugins'].O[filename].A['npcs'].Add(NPC_id(r));
             bHadFaceGenNPC := true;
             sex := 'Male';
             if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
@@ -1374,15 +1408,16 @@ procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
     Process NPC
 }
 var
-    masterFile, relativeFormid, sn: string;
+    masterFile, relativeFormid, sn, facegenMeshPath: string;
     e, headparts, npc, masterRecord, npcnew: IInterface;
-    bRemovePreset, bAddPreset, bMissingHere, bAllHere, bWasChargenFacePreset: Boolean;
+    bRemovePreset, bAddPreset, bMissingHere, bAllHere, bWasChargenFacePreset, bPatchedNPC: Boolean;
     i, idx: integer;
 begin
     bRemovePreset := false;
     bAddPreset := false;
     bMissingHere := false;
     bAllHere := false;
+    bPatchedNPC := false;
 
     sn := NPC_id(r);
 
@@ -1413,24 +1448,27 @@ begin
     idx := slEverything.IndexOf(sn);
     if idx > -1 then bAllHere := true;
 
+    relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
     if bMissingHere or bOnlyMissing or bQuickFaceFix then begin
-        relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
         if not bAllHere then begin
             if not bAddPreset then begin
                 if FaceGenExists(relativeFormid, masterFile) then Exit;
             end;
         end;
     end;
+
+    facegenMeshPath := 'Meshes\Actors\Character\FaceGenData\FaceGeom\' + masterFile + '\' + relativeFormid + '.nif';
     if ElementExists(r, 'Head Parts') then begin
         headparts := ElementByPath(r, 'Head Parts');
         for i := 0 to Pred(ElementCount(headparts)) do begin
             e := WinningOverride(LinksTo(ElementbyIndex(headparts, i)));
             if ProcessHeadPart(e) then begin
-                joFaces.O['NPCsToPatch'].O['Meshes\Actors\Character\FaceGenData\FaceGeom\' + masterFile
-                    + '\' + relativeFormid + '.nif'].S['headpart'] := IntToHex(GetLoadOrderFormID(e), 8);
+                joFaces.O['NPCsToPatch'].O[facegenMeshPath].S['headpart'] := IntToHex(GetLoadOrderFormID(e), 8);
+                bPatchedNPC := true;
             end;
         end;
     end;
+    if not bPatchedNPC then joFaces.A['NPCsToCopy'].Add(facegenMeshPath);
 
 
     //Add NPC to patch
@@ -1472,7 +1510,7 @@ var
     i, k, l, m, textureCount: integer;
     r, e, eTints, eTintGroup, eOptions, eOption, eTextures, eHeadParts, eHeadPart, eHead, eFaceDetails, eFace, eTxst: IInterface;
     bTint: Boolean;
-    recordId, recordIdHere, material, texture: string;
+    recordId, recordIdHere, material, texture, rShortName: string;
     slTxst: TStringList;
     tlTxst: TList;
 begin
@@ -1481,11 +1519,12 @@ begin
     ////////////////////////////////////////////////////////////////////
     //Race
     r := race;
-    recordId := GetFileName(r) + #9 + ShortName(r);
+    rShortName := ShortName(r);
+    recordId := GetFileName(r) + #9 + rShortName;
     AddMessage('---------------------------------------------------------------------------------------');
     AddMessage(recordId);
 
-    if StrToBool(joFaces.O['races'].O[ShortName(r)].S['Male']) then begin
+    if StrToBool(joFaces.O['races'].O[rShortName].S['Male']) then begin
         //Male Head Parts (sorted)
         //  Head Part
         //    HEAD > Links To HDPT record
@@ -1557,7 +1596,7 @@ begin
 
     end;
 
-    if StrToBool(joFaces.O['races'].O[ShortName(r)].S['Female']) then begin
+    if StrToBool(joFaces.O['races'].O[rShortName].S['Female']) then begin
 
         //Female Head Parts (sorted)
         //  Head Part
@@ -1644,7 +1683,7 @@ begin
         end;
     end;
 
-    TextureInfo;
+    TextureInfo(rShortName);
 
 
     slTxst.Free;
@@ -1667,31 +1706,37 @@ begin
 
 end;
 
-procedure TextureInfo;
+procedure TextureInfo(race: string);
 var
     i: integer;
-    f: string;
+    f, textureinfo: string;
 begin
     AddMessage('=======================================================================================');
     AddMessage('Diffuse textures:');
     for i := 0 to Pred(slDiffuseTextures.Count) do begin
         f := slDiffuseTextures[i];
         if f = '' then continue;
-        AddMessage(f + #9 + GetTextureInfo(f));
+        textureinfo := GetTextureInfo(f);
+        joFaces.O['races'].O[race].O['textures'].A[f].Add(textureinfo);
+        AddMessage(f + #9 + textureinfo);
     end;
     AddMessage('=======================================================================================');
     AddMessage('Normal textures:');
     for i := 0 to Pred(slNormalTextures.Count) do begin
         f := slNormalTextures[i];
         if f = '' then continue;
-        AddMessage(f + #9 + GetTextureInfo(f));
+        textureinfo := GetTextureInfo(f);
+        joFaces.O['races'].O[race].O['textures'].A[f].Add(textureinfo);
+        AddMessage(f + #9 + textureinfo);
     end;
     AddMessage('=======================================================================================');
     AddMessage('Specular textures:');
     for i := 0 to Pred(slSpecularTextures.Count) do begin
         f := slSpecularTextures[i];
         if f = '' then continue;
-        AddMessage(f + #9 + GetTextureInfo(f));
+        textureinfo := GetTextureInfo(f);
+        joFaces.O['races'].O[race].O['textures'].A[f].Add(textureinfo);
+        AddMessage(f + #9 + textureinfo);
     end;
 end;
 
@@ -1718,8 +1763,8 @@ begin
         AddMessage('Warning:' + id + ' defines missing texture ' + texture);
         Exit;
     end;
-    slTextures.Add(texture);
-    slAssets.Add(texture);
+    if not SameText(textureType, 'tint') then slTextures.Add(texture);
+    //slAssets.Add(texture);  //We don't need to add textures to resource list if we are copying them anyway.
 
     if textureType = '' then begin
         if SameText(RightStr(texture, 6), '_d.dds') then slDiffuseTextures.add(texture)
@@ -1742,8 +1787,7 @@ function GetTextureInfo(f: string): string;
 }
 var
     dds: TwbDDSFile;
-    height, width, mipmaps: integer;
-    cubemap: string;
+    height, width: integer;
 begin
     dds := TwbDDSFile.Create;
     try
@@ -1998,6 +2042,16 @@ function BoolToStr(b: boolean): string;
 }
 begin
     if b then Result := 'true' else Result := 'false';
+end;
+
+procedure EnsureDirectoryExists(f: string);
+{
+    Create directories if they do not exist.
+}
+begin
+    if not DirectoryExists(f) then
+        if not ForceDirectories(f) then
+            raise Exception.Create('Can not create destination directory ' + f);
 end;
 
 end.
