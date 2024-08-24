@@ -48,7 +48,7 @@ begin
         model := joFaces.O['NPCsToPatch'].Names[i];
         headpart := joFaces.O['NPCsToPatch'].O[model].S['headpart'];
         headpartModel := joFaces.O['Headparts with Cloth Data'].O[headpart].S['model'];
-        PatchBSClothExtraData(model, GetBSClothExtraData(headpartModel));
+        PatchBSClothExtraData(headpartModel, model);
     end;
 end;
 
@@ -73,52 +73,36 @@ begin
     end;
 end;
 
-procedure PatchBSClothExtraData(f: string; cloth: TwbNifBlock);
+procedure PatchBSClothExtraData(fromNif, toNif: string);
 var
     j: integer;
-    nif: TwbNifFile;
-    block: TwbNifBlock;
+    nif, clothnif: TwbNifFile;
+    block, cloth: TwbNifBlock;
 begin
     nif := TwbNifFile.Create;
+    clothnif := TwbNifFile.Create;
     try
-        nif.LoadFromResource(f);
+        clothnif.LoadFromResource(fromNif);
+        for j := 0 to Pred(clothnif.BlocksCount) do begin
+            cloth := clothnif.Blocks[j];
+
+            if cloth.BlockType = 'BSClothExtraData' then break;
+        end;
+
+        nif.LoadFromResource(toNif);
         for j := 0 to Pred(nif.BlocksCount) do begin
             block := nif.Blocks[j];
 
             if block.BlockType = 'BSClothExtraData' then begin
-                block := cloth;
-                nif.SaveToFile(wbDataPath + f);
-                AddMessage('Updated: ' + wbDataPath + f);
+                block.Assign(cloth);
+                nif.SaveToFile(wbDataPath + toNif);
+                AddMessage('Updated: ' + wbDataPath + toNif);
                 break;
             end;
         end;
     finally
         nif.free;
-    end;
-end;
-
-function GetBSClothExtraData(f: string): TwbNifBlock;
-{
-    Gets BSClothExtraData
-}
-var
-    j: integer;
-    nif: TwbNifFile;
-    block: TwbNifBlock;
-begin
-    nif := TwbNifFile.Create;
-    try
-        nif.LoadFromResource(f);
-        for j := 0 to Pred(nif.BlocksCount) do begin
-            block := nif.Blocks[j];
-
-            if block.BlockType = 'BSClothExtraData' then begin
-                Result := block;
-                break;
-            end;
-        end;
-    finally
-        nif.free;
+        clothnif.free;
     end;
 end;
 
