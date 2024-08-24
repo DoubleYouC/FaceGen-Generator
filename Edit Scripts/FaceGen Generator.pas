@@ -12,11 +12,11 @@ var
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
     tlRace, tlNpc, tlTxst, tlCopyToReal, tlNPCid: TList;
-    slModels, slTextures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds: TStringList;
+    slModels, slTextures, slBC5Textures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds: TStringList;
     slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
     rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
-    joFaces, joConfig, joRules, joUserRules: TJsonObject;
-    uiScale: integer;
+    joFaces, joConfig, joRules, joUserRules, joTextureContainer: TJsonObject;
+    uiScale, maxTextureSize: integer;
 
     lvRules: TListView;
     btnRuleOk, btnRuleCancel: TButton;
@@ -40,6 +40,7 @@ begin
     CreateObjects;
     bNeedPlugin := false;
     sLastRuleType := 'Plugin';
+    maxTextureSize := 1024;
 
     //Get scaling
     uiScale := Screen.PixelsPerInch * 100 / 96;
@@ -99,6 +100,7 @@ begin
 
     slModels.Free;
     slTextures.Free;
+    slBC5Textures.Free;
     slMaterials.Free;
     slAssets.Free;
     slPluginFiles.Free;
@@ -128,6 +130,7 @@ begin
     end;
     joUserRules.Free;
     joConfig.S['NeedPlugin'] := bNeedPlugin;
+    joConfig.S['MaxTextureSize'] := maxTextureSize;
     joConfig.SaveToFile(sVEFSDir + '\config.json', False, TEncoding.UTF8, True);
     joConfig.Free;
     joFaces.SaveToFile(sVEFSDir + '\Faces.json', False, TEncoding.UTF8, True);
@@ -153,6 +156,10 @@ begin
     slTextures := TStringList.Create;
     slTextures.Sorted := True;
     slTextures.Duplicates := dupIgnore;
+
+    slBC5Textures := TStringList.Create;
+    slBC5Textures.Sorted := True;
+    slBC5Textures.Duplicates := dupIgnore;
 
     slDiffuseTextures := TStringList.Create;
     slDiffuseTextures.Sorted := True;
@@ -1072,7 +1079,6 @@ var
     slContainers: TwbFastStringList;
     i, j, idx: integer;
     f, s, archive, filename, folder, masterFile: string;
-    joTextureContainer: TJsonObject;
 begin
     slContainers := TwbFastStringList.Create;
     slArchivesToAdd := TStringList.Create;
@@ -1127,6 +1133,9 @@ begin
                     if slTextures.IndexOf(f) > -1 then begin
                         joTextureContainer.O[f].S['container'] := slContainers[i];
                     end;
+                    if slBC5Textures.IndexOf(f) > -1 then begin
+                        joTextureContainer.O[f].S['container'] := slContainers[i];
+                    end;
                     if slTintTextures.IndexOf(f) > -1 then begin
                         joTextureContainer.O[f].S['container'] := slContainers[i];
                     end;
@@ -1142,31 +1151,31 @@ begin
     slArchivesToAdd.Free;
     slContainers.Free;
 
-    //add textures to json for conversion
-    for i := 0 to Pred(slTextures.Count) do begin
-        f := slTextures[i];
-        folder := ExtractFilePath(f) + 'FGP\';
-        filename := ExtractFileName(f);
-        s := sVEFSDir + '\Temp\' + folder + filename;
-        if f = '' then continue;
-        joFaces.A['textures'].Add(s);
-        Addmessage('Copying' + #9 + f + #9 + ' to ' + #9 + s);
-        EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
-        ResourceCopy(joTextureContainer.O[LowerCase(f)].S['container'], f, s)
-    end;
-    for i := 0 to Pred(slTintTextures.Count) do begin
-        f := slTintTextures[i];
-        folder := ExtractFilePath(f) + 'FGP\';
-        filename := ExtractFileName(f);
-        s := sVEFSDir + '\Temp\' + folder + filename;
-        if f = '' then continue;
-        joFaces.A['tint_textures'].Add(s);
-        Addmessage('Copying' + #9 + f + #9 + ' to ' + #9 + s);
-        EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
-        ResourceCopy(joTextureContainer.O[LowerCase(f)].S['container'], f, s)
-    end;
+    //add textures for conversion
+
+    CopyTextures(slTextures, 'textures');
+    CopyTextures(slBC5Textures, 'bc5_textures');
+    CopyTextures(slTintTextures, 'tint_textures');
 
     joTextureContainer.Free;
+end;
+
+procedure CopyTextures(sl: TStringList; key: string);
+var
+    i: integer;
+    f, folder, filename, s: string;
+begin
+    for i := 0 to Pred(sl.Count) do begin
+        f := sl[i];
+        folder := ExtractFilePath(f) + 'FGP\';
+        filename := ExtractFileName(f);
+        s := sVEFSDir + '\Temp\' + folder + filename;
+        if f = '' then continue;
+        joFaces.A[key].Add(s);
+        Addmessage('Copying' + #9 + f + #9 + ' to ' + #9 + s);
+        EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
+        ResourceCopy(joTextureContainer.O[LowerCase(f)].S['container'], f, s)
+    end;
 end;
 
 procedure CreateRealPlugin;
@@ -1464,11 +1473,15 @@ begin
             e := WinningOverride(LinksTo(ElementbyIndex(headparts, i)));
             if ProcessHeadPart(e) then begin
                 joFaces.O['NPCsToPatch'].O[facegenMeshPath].S['headpart'] := IntToHex(GetLoadOrderFormID(e), 8);
+                joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
                 bPatchedNPC := true;
             end;
         end;
     end;
-    if not bPatchedNPC then joFaces.A['NPCsToCopy'].Add(facegenMeshPath);
+    if not bPatchedNPC then begin
+        joFaces.A['NPCsToCopy'].Add(facegenMeshPath);
+        joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
+    end;
 
 
     //Add NPC to patch
@@ -1763,22 +1776,31 @@ begin
         AddMessage('Warning:' + id + ' defines missing texture ' + texture);
         Exit;
     end;
-    if not SameText(textureType, 'tint') then slTextures.Add(texture);
+
     //slAssets.Add(texture);  //We don't need to add textures to resource list if we are copying them anyway.
 
     if textureType = '' then begin
-        if SameText(RightStr(texture, 6), '_d.dds') then slDiffuseTextures.add(texture)
-        else if SameText(RightStr(texture, 6), '_n.dds') then slNormalTextures.add(texture)
-        else if SameText(RightStr(texture, 6), '_s.dds') then slSpecularTextures.add(texture)
-        else AddMessage('Texture type could not verified:' + #9 + texture);
-    end
-    else if textureType = 'tint' then begin
+        if SameText(RightStr(texture, 6), '_d.dds') then textureType = 'diffuse'
+        else if SameText(RightStr(texture, 6), '_n.dds') then textureType = 'normal'
+        else if SameText(RightStr(texture, 6), '_s.dds') then textureType = 'specular'
+        else textureType = 'tint';
+    end;
+    if textureType = 'tint' then begin
         slDiffuseTextures.Add(texture);
         slTintTextures.Add(texture);
     end
-    else if textureType = 'diffuse' then slDiffuseTextures.Add(texture)
-    else if textureType = 'normal' then slNormalTextures.Add(texture)
-    else if textureType = 'specular' then slSpecularTextures.Add(texture);
+    else if textureType = 'diffuse' then begin
+        slDiffuseTextures.Add(texture);
+        slTextures.Add(texture);
+    end
+    else if textureType = 'normal' then begin
+        slNormalTextures.Add(texture);
+        slBC5Textures.Add(texture);
+    end
+    else if textureType = 'specular' then begin
+        slSpecularTextures.Add(texture);
+        slBC5Textures.Add(texture);
+    end;
 end;
 
 function GetTextureInfo(f: string): string;
@@ -1802,6 +1824,8 @@ begin
         end;
         height := dds.NativeValues['HEADER\dwHeight'];
         width := dds.NativeValues['HEADER\dwWidth'];
+        if (height > maxTextureSize) then maxTextureSize := height;
+        if (width > maxTextureSize) then maxTextureSize := width;
         Result := IntToStr(height) + ' x ' + IntToStr(width);
     finally
         dds.Free;

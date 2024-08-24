@@ -91,6 +91,8 @@ $script:textures = Join-Path $script:data -ChildPath "Textures"
 $script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
 $script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
 $script:tempFaceGenTextures = Join-Path $script:tempfolder "Textures\Actors\Character\FaceCustomization"
+$script:tempBaseFaceTextures = Join-Path $script:tempfolder -ChildPath "Textures"
+$tempBaseFaceTexturesArchive = Join-Path $script:data "FaceGenPatch - Textures.ba2"
 $script:FacesJson = Join-Path $scriptDir "Faces.json"
 
 $script:FacegenMeshes = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
@@ -366,6 +368,13 @@ try {
     $FaceCount = [string]$script:configfile.Face_Count
     $Mode = [string]$script:configfile.Mode
     $script:RunElric = [string]$script:configFile.RunElric
+    $MaxTextureSize = [string]$script:configFile.MaxTextureSize
+
+    $script:FacesInfo = Get-Content -Path $FacesJson -Raw | ConvertFrom-Json
+    $LooseFilesToDelete = $FacesInfo.LooseFilesToDelete
+    $TexturesToProcess = $FacesInfo.textures
+    $tintTexturesToProcess = $FacesInfo.tint_textures
+    $bc5TexturesToProcess = $FacesInfo.bc5_textures
 
     $script:PluginName = [string]$script:configfile.PluginName
     $meshesarchive = Join-Path $script:data "$PluginName - Main.ba2"
@@ -391,10 +400,79 @@ try {
         Pause
         Exit
     }
+    ##############################################################################
+    # Compress face textures
+    ##############################################################################
+    Write-Host "Converting textures..."
+
+    $texconvProcess = @()
+    foreach ($file in $TexturesToProcess) {
+        if (Test-Path -LiteralPath $file) {
+            $outputpath = [System.IO.Path]::GetDirectoryName($file)
+            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+        } else {
+            Write-Host "File not found: $file"
+        }
+    }
+    foreach ($file in $tintTexturesToProcess) {
+        if (Test-Path -LiteralPath $file) {
+            $outputpath = [System.IO.Path]::GetDirectoryName($file)
+            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+        } else {
+            Write-Host "File not found: $file"
+        }
+    }
+    foreach ($file in $bc5TexturesToProcess) {
+        if (Test-Path -LiteralPath $file) {
+            $outputpath = [System.IO.Path]::GetDirectoryName($file)
+            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-w $MaxTextureSize -h $MaxTextureSize -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+        } else {
+            Write-Host "File not found: $file"
+        }
+    }
+    $texconvProcess | ForEach-Object { $_ | Wait-Process }
+    Write-Host "Done converting textures."
+
+    #Create textures archive
+    $textureBaseArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:tempBaseFaceTextures`" -r=`"$script:tempfolder`" -c=`"$tempBaseFaceTexturesArchive`" -f=DDS" -PassThru
+    if (!($textureBaseArchiveProcess.HasExited)) {
+        Wait-Process -InputObject $textureBaseArchiveProcess
+    }
+    try {
+        Get-Process -Name $textureBaseArchiveProcess -ErrorAction Stop
+        Read-Host "Press Any Key after Archive2 has closed"
+    } catch {
+        Write-Host "Archive2 has exited."
+    }
+
+
+    ##############################################################################
+    # Launch CK
+    ##############################################################################
 
     HandleSteamApiMismatch
     SteamAppIdTxt -appid 19946160
     $process = Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -PassThru
+
+    $i = 0
+    $TotalCount = [int]$FaceCount
+    $milli = [int][math]::Round((1 / $TotalCount) * 4000)
+    while ($i -lt $TotalCount) {
+        # Update progress
+        $percentComplete = [math]::Round(($i / $TotalCount) * 100)
+        Write-Progress -Activity "Creating Facegen..." -Status "Processing..." -PercentComplete $percentComplete
+
+        # Check if a file exists
+        foreach ($file in $LooseFilesToDelete) {
+            if (Test-Path -Path $file) {
+                $i++
+            } else {
+                Start-Sleep -Milliseconds $milli
+            }
+        }
+    }
+    Write-Progress -Activity "Creating Facegen..." -Status "Completed" -PercentComplete 100
+
     if (!($process.HasExited)) {
         Wait-Process -InputObject $process
     }
@@ -528,6 +606,7 @@ try {
     } catch {
         Write-Host "Archive2 has exited."
     }
+    Remove-Item -LiteralPath $tempBaseFaceTexturesArchive -Force
     # Check if the -clean argument was passed
     if ($args -contains "-clean") {
         # Automatically delete loose files without prompting
@@ -545,7 +624,13 @@ try {
         $wshell = New-Object -ComObject Wscript.Shell
         $decision = $wshell.Popup("Delete loose files at `"$script:FacegenMeshes`" ?",0,"Delete loose facegen meshes?",0x4 + 0x20)
         if ($decision -eq 6) {
-            Remove-Item -LiteralPath "$script:FacegenMeshes" -Recurse
+            foreach ($file in $LooseFilesToDelete) {
+                if (Test-Path -LiteralPath $file) {
+                    Remove-Item -LiteralPath $file -Force
+                } else {
+                    Write-Host "File not found: $file"
+                }
+            }
             Write-Host "`"$script:FacegenMeshes`" was deleted."
         } else {
             Write-Host "`"$script:FacegenMeshes`" was NOT deleted."
@@ -553,7 +638,7 @@ try {
 
         $decision = $wshell.Popup("Delete loose files at `"$script:FacegenTextures`" ?",0,"Delete loose facegen textures?",0x4 + 0x20)
         if ($decision -eq 6) {
-            Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse
+            Remove-Item -LiteralPath "$script:FacegenTextures" -Recurse -Force
             Write-Host "`"$script:FacegenTextures`" was deleted."
         } else {
             Write-Host "`"$script:FacegenTextures`" was NOT deleted."
@@ -561,7 +646,7 @@ try {
 
         $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
         if ($decision -eq 6) {
-            Remove-Item -LiteralPath "$script:tempfolder" -Recurse
+            Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
             Write-Host "`"$script:tempfolder`" was deleted."
         } else {
             Write-Host "`"$script:tempfolder`" was NOT deleted."
