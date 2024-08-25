@@ -364,7 +364,7 @@ begin
 
         cbResolution := TComboBox.Create(gbOptions);
         cbResolution.Parent := gbOptions;
-        cbResolution.Left := rbOnlyMissing.Left + 60;
+        cbResolution.Left := 76; //rbOnlyMissing.Left + 60;
         cbResolution.Top := 24;
         cbResolution.Width := 50;
         cbResolution.Style := csDropDownList;
@@ -372,7 +372,7 @@ begin
         cbResolution.ItemIndex := slResolutions.IndexOf(sResolution);
         cbResolution.Hint := 'Sets the texture resolution.';
         cbResolution.ShowHint := True;
-        CreateLabel(gbOptions, rbOnlyMissing.Left, cbResolution.Top + 3, 'Resolution');
+        CreateLabel(gbOptions, 16, cbResolution.Top + 3, 'Resolution');
 
         btnStart := TButton.Create(frm);
         btnStart.Parent := frm;
