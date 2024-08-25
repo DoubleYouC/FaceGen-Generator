@@ -355,12 +355,12 @@ begin
         gbOptions.Caption := 'Options';
         gbOptions.Height := 54;
 
-        chkElric := TCheckBox.Create(gbOptions);
-        chkElric.Parent := gbOptions;
-        chkElric.Left := 16;
-        chkElric.Top := 25;
-        chkElric.Width := 100;
-        chkElric.Caption := 'Run Elric';
+        // chkElric := TCheckBox.Create(gbOptions);
+        // chkElric.Parent := gbOptions;
+        // chkElric.Left := 16;
+        // chkElric.Top := 25;
+        // chkElric.Width := 100;
+        // chkElric.Caption := 'Run Elric';
 
         cbResolution := TComboBox.Create(gbOptions);
         cbResolution.Parent := gbOptions;
@@ -411,7 +411,7 @@ begin
         frm.Font.Size := 8;
         frm.Height := btnStart.Top + btnStart.Height + btnStart.Height + 25;
 
-        chkElric.Checked := StrToBool(joConfig.S['RunElric']);
+        //chkElric.Checked := StrToBool(joConfig.S['RunElric']);
 
         if joConfig.Contains('PluginName') then edPluginName.Text := joConfig.S['PluginName']
         else edPluginName.Text := 'FaceGen Output';
@@ -430,7 +430,7 @@ begin
 
         joConfig.S['PluginName'] := sRealPlugin;
         joConfig.S['Resolution'] := sResolution;
-        joConfig.S['RunElric'] := chkElric.Checked;
+        joConfig.S['RunElric'] := false;
         if bCKPEExists then ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
     finally
         frm.Free;

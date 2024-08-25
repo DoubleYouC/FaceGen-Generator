@@ -43,7 +43,7 @@ end;
 procedure CopyFaces;
 var
     i: integer;
-    key: string;
+    key, folder: string;
     nif: TwbNifFile;
 begin
     for i := 0 to Pred(joFaces.A['NPCsToCopy'].Count) do begin
@@ -52,6 +52,8 @@ begin
         nif := TwbNifFile.Create;
         try
             nif.LoadFromResource(key);
+            folder := ExtractFilePath(key);
+            EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
             nif.SaveToFile(sVEFSDir + '\Temp\' + key);
         finally
             nif.free;
@@ -98,6 +100,7 @@ var
     j: integer;
     nif, clothnif: TwbNifFile;
     block, cloth: TwbNifBlock;
+    folder: string;
 begin
     nif := TwbNifFile.Create;
     clothnif := TwbNifFile.Create;
@@ -115,6 +118,8 @@ begin
 
             if block.BlockType = 'BSClothExtraData' then begin
                 block.Assign(cloth);
+                folder := ExtractFilePath(toNif);
+                EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
                 nif.SaveToFile(sVEFSDir + '\Temp\' + toNif);
                 AddMessage('Updated: ' + sVEFSDir + '\Temp\' + toNif);
                 break;
@@ -132,6 +137,16 @@ function TrimRightChars(s: string; chars: integer): string;
 }
 begin
     Result := RightStr(s, Length(s) - chars);
+end;
+
+procedure EnsureDirectoryExists(f: string);
+{
+    Create directories if they do not exist.
+}
+begin
+    if not DirectoryExists(f) then
+        if not ForceDirectories(f) then
+            raise Exception.Create('Can not create destination directory ' + f);
 end;
 
 end.

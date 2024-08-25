@@ -81,7 +81,7 @@ $script:Archive2 = Join-Path $script:fo4 "tools\archive2\archive2.exe"
 $script:facegenpatch = Join-Path $script:data "Facegenpatch.esp"
 $script:ElrichDir = Join-Path $script:fo4 "tools\elric"
 $script:Elrich = Join-Path $script:fo4 "tools\elric\elrich.exe"
-$script:Texconv = Join-Path $script:fo4 "tools\elric\texconv.exe"
+$script:Texconv = Join-Path $scriptDir "tools\texconv\texconv.exe"
 $script:winhttp = Join-Path $script:fo4 "winhttp.dll"
 
 $script:xEditPath = $scriptDir #set here as default for the file open dialog
@@ -417,7 +417,7 @@ try {
     foreach ($file in $tintTexturesToProcess) {
         if (Test-Path -LiteralPath $file) {
             $outputpath = [System.IO.Path]::GetDirectoryName($file)
-            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC1_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
         } else {
             Write-Host "File not found: $file"
         }
@@ -547,19 +547,6 @@ try {
     if (Test-Path -Path "$script:tempfolder") {
         Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
         Write-Host "`"$script:tempfolder`" was deleted automatically"
-    }
-
-    #Create empty mesh directories
-    New-Item -ItemType "directory" -Path $tempFaceGenMeshes
-    $files = Get-ChildItem $FacegenMeshes -Recurse -Filter *.nif
-    foreach ($f in $files){
-        Set-Location $FacegenMeshes
-        $relativepath = Get-Item $f.Directory | Resolve-Path -Relative
-        $relativepath = $relativepath.ToString().Substring(2)
-        $outputpath = Join-Path $tempFaceGenMeshes $relativepath
-        if (!(Test-Path -Path $outputpath)){
-            New-Item -ItemType "directory" -Path $outputpath
-        }
     }
 
     $fixfacepas = Join-Path -Path $scriptDir -ChildPath "Edit Scripts\FixFacegen.pas"
