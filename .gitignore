@@ -365,3 +365,4 @@ xEditLocation.json
 config.json
 Faces.json
 Rules/UserRules.json
+tools/texconv/texconv.exe
