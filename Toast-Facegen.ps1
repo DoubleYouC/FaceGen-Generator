@@ -454,24 +454,24 @@ try {
     SteamAppIdTxt -appid 19946160
     $process = Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -PassThru
 
-    $i = 0
-    $TotalCount = [int]$FaceCount
-    $milli = [int][math]::Round((1 / $TotalCount) * 4000)
-    while ($i -lt $TotalCount) {
-        # Update progress
-        $percentComplete = [math]::Round(($i / $TotalCount) * 100)
-        Write-Progress -Activity "Creating Facegen..." -Status "Processing..." -PercentComplete $percentComplete
+    # $i = 0
+    # $TotalCount = [int]$FaceCount
+    # $milli = [int][math]::Round((1 / $TotalCount) * 4000)
+    # while ($i -lt $TotalCount) {
+    #     # Update progress
+    #     $percentComplete = [math]::Round(($i / $TotalCount) * 100)
+    #     Write-Progress -Activity "Creating Facegen..." -Status "Processing..." -PercentComplete $percentComplete
 
-        # Check if a file exists
-        foreach ($file in $LooseFilesToDelete) {
-            if (Test-Path -Path $file) {
-                $i++
-            } else {
-                Start-Sleep -Milliseconds $milli
-            }
-        }
-    }
-    Write-Progress -Activity "Creating Facegen..." -Status "Completed" -PercentComplete 100
+    #     # Check if a file exists
+    #     foreach ($file in $LooseFilesToDelete) {
+    #         if (Test-Path -Path $file) {
+    #             $i++
+    #         } else {
+    #             Start-Sleep -Milliseconds $milli
+    #         }
+    #     }
+    # }
+    # Write-Progress -Activity "Creating Facegen..." -Status "Completed" -PercentComplete 100
 
     if (!($process.HasExited)) {
         Wait-Process -InputObject $process
