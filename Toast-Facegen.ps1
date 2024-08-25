@@ -409,7 +409,7 @@ try {
     foreach ($file in $TexturesToProcess) {
         if (Test-Path -LiteralPath $file) {
             $outputpath = [System.IO.Path]::GetDirectoryName($file)
-            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
         } else {
             Write-Host "File not found: $file"
         }
@@ -417,7 +417,7 @@ try {
     foreach ($file in $tintTexturesToProcess) {
         if (Test-Path -LiteralPath $file) {
             $outputpath = [System.IO.Path]::GetDirectoryName($file)
-            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
         } else {
             Write-Host "File not found: $file"
         }
@@ -425,7 +425,7 @@ try {
     foreach ($file in $bc5TexturesToProcess) {
         if (Test-Path -LiteralPath $file) {
             $outputpath = [System.IO.Path]::GetDirectoryName($file)
-            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-w $MaxTextureSize -h $MaxTextureSize -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
         } else {
             Write-Host "File not found: $file"
         }
