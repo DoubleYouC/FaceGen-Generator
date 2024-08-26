@@ -551,6 +551,14 @@ try {
 
     $fixfacepas = Join-Path -Path $scriptDir -ChildPath "Edit Scripts\FixFacegen.pas"
     $FixMeshProcess = Start-Process -FilePath $fo4EditExe -ArgumentList "-autoload -script:`"$fixfacepas`" -nobuildrefs -FO4 -D:`"$script:data`" -vefsdir:`"$scriptDir`"" -PassThru
+    Start-Sleep -Seconds 5
+    $wshell = New-Object -ComObject wscript.shell;
+    $wshell.AppActivate('Module Selection')
+    Start-Sleep -Seconds 1
+    $wshell.SendKeys('~')
+
+    #[System.Windows.Forms.SendKeys]::SendWait({'~'})
+
     if (!($FixMeshProcess.HasExited)) {
         Wait-Process -InputObject $FixMeshProcess
     }
@@ -563,20 +571,21 @@ try {
 
 
     #Run Elric only on the meshes.
-    if ($RunElric -eq "true") {
-        $ElricProcess = Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
-        -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
-        -PassThru
-        if (!($ElricProcess.HasExited)) {
-            Wait-Process -InputObject $ElricProcess
-        }
-        try {
-            Get-Process -Name "Elrich" -ErrorAction Stop
-            Read-Host "Press Any Key after Elrich has closed"
-        } catch {
-            Write-Host "Elric has exited."
-        }
-    }
+    #This is now disabled effectively.
+    # if ($RunElric -eq "true") {
+    #     $ElricProcess = Start-Process -FilePath $script:Elrich -WorkingDirectory $ElrichDir `
+    #     -ArgumentList "`"$script:elrichdir\Settings\PCMeshes.esf`" -ElricOptions.ConvertTarget=`"$script:tempfolder`" -ElricOptions.OutputDirectory=`"$script:tempfolder`" -ElricOptions.CloseWhenFinished=True" `
+    #     -PassThru
+    #     if (!($ElricProcess.HasExited)) {
+    #         Wait-Process -InputObject $ElricProcess
+    #     }
+    #     try {
+    #         Get-Process -Name "Elrich" -ErrorAction Stop
+    #         Read-Host "Press Any Key after Elrich has closed"
+    #     } catch {
+    #         Write-Host "Elric has exited."
+    #     }
+    # }
 
     #Create meshes archive
     $meshesArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:meshes`" -r=`"$script:tempfolder`" -c=`"$meshesarchive`" -f=General -includeFilters=(?i)meshes\\actors\\character\\facegendata\\facegeom\\" -PassThru
