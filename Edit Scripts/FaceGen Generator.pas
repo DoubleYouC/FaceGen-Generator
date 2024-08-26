@@ -1879,6 +1879,7 @@ begin
             //Add Own Emit if missing
             if block.BlockType = 'BSLightingShaderProperty' then begin
                 if block.NativeValues['Shader Flags 1\Own_Emit'] = 0 then begin
+                    EnsureDirectoryExists(wbDataPath + ExtractFilePath(f));
                     nif.SaveToFile(wbDataPath + f + '.bak');
                     block.NativeValues['Shader Flags 1\Own_Emit'] := 1;
                     bWasChanged := true;
