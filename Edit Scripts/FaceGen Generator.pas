@@ -9,7 +9,7 @@ unit FaceGen;
 
 var
     iPluginFile, iRealPlugin: IInterface;
-    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric: Boolean;
+    bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric, bCompressTextures: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
     tlRace, tlNpc, tlTxst, tlCopyToReal, tlNPCid: TList;
     slModels, slTextures, slBC5Textures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds: TStringList;
@@ -36,6 +36,8 @@ function Initialize: integer;
 }
 var
     i: integer;
+    bCKPEExists: boolean;
+    ini: TIniFile;
 begin
     CreateObjects;
     bNeedPlugin := false;
@@ -54,11 +56,34 @@ begin
     FetchRules;
     CollectRecords;
 
+    if joConfig.Contains('PluginName') then sRealPlugin := joConfig.S['PluginName']
+    else sRealPlugin := 'FaceGen Output';
+    bCompressTextures := StrToBool(joConfig.S['CompressTextures']);
+
+    bCKPEExists := false;
+    if FileExists(GamePath + 'CreationKitPlatformExtended.ini') then begin
+        bCKPEExists := true;
+        ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
+        sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
+        if slResolutions.IndexOf(sResolution) = -1 then slResolutions.Add(sResolution);
+    end
+    else sResolution := '2048';
+
     if not bBatchMode then begin
         if not MainMenuForm then begin
             Result := 1;
             Exit;
         end;
+    end;
+    joConfig.S['PluginName'] := sRealPlugin;
+    joConfig.S['Resolution'] := sResolution;
+    joConfig.S['RunElric'] := false;
+    joConfig.S['CompressTextures'] := bCompressTextures;
+    if bCKPEExists then begin
+        ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
+        ini.WriteString('FaceGen', 'bDisableExportDDS', 'false					; Prevent tint export as DDS');
+        ini.WriteString('FaceGen', 'bDisableExportNIF', 'false					; Prevent facegen geometry export');
+        ini.WriteString('CreationKit', 'bD3D11Patch', 'true						; Makes it possible to initialize both 11.0 and 11.2 version DirectX. So and fixed Nvidia NSight checks. Need Win8.1 and newer.');
     end;
 
     if bOnlyMissing then begin
@@ -255,7 +280,7 @@ var
     picVefs: TPicture;
     fImage: TImage;
     cbResolution: TComboBox;
-    chkElric: TCheckBox;
+    chkElric, chkCompressTextures: TCheckBox;
     edPluginName: TEdit;
     ini: TIniFile;
     bCKPEExists: Boolean;
@@ -362,9 +387,22 @@ begin
         // chkElric.Width := 100;
         // chkElric.Caption := 'Run Elric';
 
+        chkCompressTextures := TCheckBox.Create(gbOptions);
+        chkCompressTextures.Parent := gbOptions;
+        chkCompressTextures.Left := 16;
+        chkCompressTextures.Top := 25;
+        chkCompressTextures.Width := 110;
+        chkCompressTextures.Caption := 'Fix Face Textures';
+        chkCompressTextures.Hint := 'Automatically extracts all textures and forces them' +
+            + #13#10 + 'into compatible format and size to prevent'
+            + #13#10 + 'textures failing to load. This requires all'
+            + #13#10 + 'installed face textures to be in archives, or it'
+            + #13#10 + 'will not work.';
+        chkCompressTextures.ShowHint := True;
+
         cbResolution := TComboBox.Create(gbOptions);
         cbResolution.Parent := gbOptions;
-        cbResolution.Left := 76; //rbOnlyMissing.Left + 60;
+        cbResolution.Left := rbOnlyMissing.Left + 60;
         cbResolution.Top := 24;
         cbResolution.Width := 50;
         cbResolution.Style := csDropDownList;
@@ -372,7 +410,7 @@ begin
         cbResolution.ItemIndex := slResolutions.IndexOf(sResolution);
         cbResolution.Hint := 'Sets the texture resolution.';
         cbResolution.ShowHint := True;
-        CreateLabel(gbOptions, 16, cbResolution.Top + 3, 'Resolution');
+        CreateLabel(gbOptions, rbOnlyMissing.Left, cbResolution.Top + 3, 'Resolution');
 
         btnStart := TButton.Create(frm);
         btnStart.Parent := frm;
@@ -412,9 +450,9 @@ begin
         frm.Height := btnStart.Top + btnStart.Height + btnStart.Height + 25;
 
         //chkElric.Checked := StrToBool(joConfig.S['RunElric']);
+        chkCompressTextures.Checked := StrToBool(joConfig.S['CompressTextures']);
 
-        if joConfig.Contains('PluginName') then edPluginName.Text := joConfig.S['PluginName']
-        else edPluginName.Text := 'FaceGen Output';
+        edPluginName.Text := sRealPlugin;
 
         if frm.ShowModal <> mrOk then begin
             Result := False;
@@ -427,11 +465,7 @@ begin
         bQuickFaceFix := rbFaceGenPreset.Checked;
         bAll := rbAll.Checked;
         sResolution := slResolutions[cbResolution.ItemIndex];
-
-        joConfig.S['PluginName'] := sRealPlugin;
-        joConfig.S['Resolution'] := sResolution;
-        joConfig.S['RunElric'] := false;
-        if bCKPEExists then ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
+        bCompressTextures := chkCompressTextures.Checked;
     finally
         frm.Free;
     end;
@@ -1095,15 +1129,6 @@ begin
         if ContainsText(archive, ' - Shaders.ba2') then continue;
         if ContainsText(archive, ' - Sounds.ba2') then continue;
         if ContainsText(archive, ' - Startup.ba2') then continue;
-        if ContainsText(archive, ' - Textures1.ba2') then continue;
-        if ContainsText(archive, ' - Textures2.ba2') then continue;
-        if ContainsText(archive, ' - Textures3.ba2') then continue;
-        if ContainsText(archive, ' - Textures4.ba2') then continue;
-        if ContainsText(archive, ' - Textures5.ba2') then continue;
-        if ContainsText(archive, ' - Textures6.ba2') then continue;
-        if ContainsText(archive, ' - Textures7.ba2') then continue;
-        if ContainsText(archive, ' - Textures8.ba2') then continue;
-        if ContainsText(archive, ' - Textures9.ba2') then continue;
         if ContainsText(archive, ' - Voices.ba2') then continue;
         if ContainsText(archive, ' - Voices_cn.ba2') then continue;
         if ContainsText(archive, ' - Voices_de.ba2') then continue;
@@ -1152,10 +1177,11 @@ begin
     slContainers.Free;
 
     //add textures for conversion
-
-    CopyTextures(slTextures, 'textures');
-    CopyTextures(slBC5Textures, 'bc5_textures');
-    CopyTextures(slTintTextures, 'tint_textures');
+    if bCompressTextures then begin
+        CopyTextures(slTextures, 'textures');
+        CopyTextures(slBC5Textures, 'bc5_textures');
+        CopyTextures(slTintTextures, 'tint_textures');
+    end;
 
     joTextureContainer.Free;
 end;
@@ -1777,7 +1803,7 @@ begin
         Exit;
     end;
 
-    //slAssets.Add(texture);  //We don't need to add textures to resource list if we are copying them anyway.
+    if not bCompressTextures then slAssets.Add(texture);  //We don't need to add textures to resource list if we are copying them anyway.
 
     if textureType = '' then begin
         if SameText(RightStr(texture, 6), '_d.dds') then textureType = 'diffuse'

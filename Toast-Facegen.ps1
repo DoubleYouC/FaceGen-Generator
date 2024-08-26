@@ -369,6 +369,7 @@ try {
     $Mode = [string]$script:configfile.Mode
     $script:RunElric = [string]$script:configFile.RunElric
     $MaxTextureSize = [string]$script:configFile.MaxTextureSize
+    $CompressTextures = [string]$script:configFile.CompressTextures
 
     $script:FacesInfo = Get-Content -Path $FacesJson -Raw | ConvertFrom-Json
     $LooseFilesToDelete = $FacesInfo.LooseFilesToDelete
@@ -403,48 +404,49 @@ try {
     ##############################################################################
     # Compress face textures
     ##############################################################################
-    Write-Host "Converting textures..."
+    if ($CompressTextures -eq "true") {
+        Write-Host "Converting textures..."
 
-    $texconvProcess = @()
-    foreach ($file in $TexturesToProcess) {
-        if (Test-Path -LiteralPath $file) {
-            $outputpath = [System.IO.Path]::GetDirectoryName($file)
-            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
-        } else {
-            Write-Host "File not found: $file"
+        $texconvProcess = @()
+        foreach ($file in $TexturesToProcess) {
+            if (Test-Path -LiteralPath $file) {
+                $outputpath = [System.IO.Path]::GetDirectoryName($file)
+                $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+            } else {
+                Write-Host "File not found: $file"
+            }
+        }
+        foreach ($file in $tintTexturesToProcess) {
+            if (Test-Path -LiteralPath $file) {
+                $outputpath = [System.IO.Path]::GetDirectoryName($file)
+                $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC4_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+            } else {
+                Write-Host "File not found: $file"
+            }
+        }
+        foreach ($file in $bc5TexturesToProcess) {
+            if (Test-Path -LiteralPath $file) {
+                $outputpath = [System.IO.Path]::GetDirectoryName($file)
+                $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+            } else {
+                Write-Host "File not found: $file"
+            }
+        }
+        $texconvProcess | ForEach-Object { $_ | Wait-Process }
+        Write-Host "Done converting textures."
+
+        #Create textures archive
+        $textureBaseArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:tempBaseFaceTextures`" -r=`"$script:tempfolder`" -c=`"$tempBaseFaceTexturesArchive`" -f=DDS" -PassThru
+        if (!($textureBaseArchiveProcess.HasExited)) {
+            Wait-Process -InputObject $textureBaseArchiveProcess
+        }
+        try {
+            Get-Process -Name $textureBaseArchiveProcess -ErrorAction Stop
+            Read-Host "Press Any Key after Archive2 has closed"
+        } catch {
+            Write-Host "Archive2 has exited."
         }
     }
-    foreach ($file in $tintTexturesToProcess) {
-        if (Test-Path -LiteralPath $file) {
-            $outputpath = [System.IO.Path]::GetDirectoryName($file)
-            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC4_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
-        } else {
-            Write-Host "File not found: $file"
-        }
-    }
-    foreach ($file in $bc5TexturesToProcess) {
-        if (Test-Path -LiteralPath $file) {
-            $outputpath = [System.IO.Path]::GetDirectoryName($file)
-            $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
-        } else {
-            Write-Host "File not found: $file"
-        }
-    }
-    $texconvProcess | ForEach-Object { $_ | Wait-Process }
-    Write-Host "Done converting textures."
-
-    #Create textures archive
-    $textureBaseArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:tempBaseFaceTextures`" -r=`"$script:tempfolder`" -c=`"$tempBaseFaceTexturesArchive`" -f=DDS" -PassThru
-    if (!($textureBaseArchiveProcess.HasExited)) {
-        Wait-Process -InputObject $textureBaseArchiveProcess
-    }
-    try {
-        Get-Process -Name $textureBaseArchiveProcess -ErrorAction Stop
-        Read-Host "Press Any Key after Archive2 has closed"
-    } catch {
-        Write-Host "Archive2 has exited."
-    }
-
 
     ##############################################################################
     # Launch CK
@@ -624,7 +626,7 @@ try {
     } catch {
         Write-Host "Archive2 has exited."
     }
-    Remove-Item -LiteralPath $tempBaseFaceTexturesArchive -Force
+    if (Test-Path -Path $tempBaseFaceTexturesArchive) { Remove-Item -LiteralPath $tempBaseFaceTexturesArchive -Force }
     # Check if the -clean argument was passed
     if ($args -contains "-clean") {
         # Automatically delete loose files without prompting
