@@ -559,6 +559,28 @@ try {
 
     #[System.Windows.Forms.SendKeys]::SendWait({'~'})
 
+    while ($true) {
+        if (Test-Path -Path $scriptDir\done.json) {
+            Write-Host "FixFaceGen is done."
+            Remove-Item -LiteralPath $scriptDir\done.json -Force
+            break
+        } else {
+            Write-Host "Waiting for FixFaceGen to finish..."
+            if ($FixMeshProcess.HasExited){
+                break
+            }
+            Start-Sleep -Seconds 5
+        }
+    }
+
+    Start-Sleep 1
+    try {
+        $FixMeshProcess.CloseMainWindow()
+        $FixMeshProcess.WaitForExit()
+    } catch {
+        Write-Host 'xEdit was already closed by user.'
+    }
+
     if (!($FixMeshProcess.HasExited)) {
         Wait-Process -InputObject $FixMeshProcess
     }
@@ -657,7 +679,9 @@ try {
         Compress-Archive -Path "$script:facegenpatch", "$script:meshesarchive", "$script:texturesarchive" -DestinationPath "$script:data\Facegen-$date.zip"
         Write-Host "All generated files were compressed into GeneratedFiles.zip."
     }
-
+    Write-Host "VEFS completed successfully."
+    Pause
+    exit
 } catch {
     Write-Host "`nAn unexpected error occurred.`n"
     Write-Error $_

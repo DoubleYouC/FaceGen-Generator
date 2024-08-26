@@ -36,6 +36,7 @@ function Finalize: integer;
 }
 begin
     joFaces.Free;
+    joConfig.SaveToFile(sVEFSDir + '\done.json', False, TEncoding.UTF8, True);
     joConfig.Free;
     Result := 0;
 end;
