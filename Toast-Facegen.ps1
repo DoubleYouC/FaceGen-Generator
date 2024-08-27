@@ -458,22 +458,29 @@ try {
 
     # $i = 0
     # $TotalCount = [int]$FaceCount
-    # $milli = [int][math]::Round((1 / $TotalCount) * 4000)
     # while ($i -lt $TotalCount) {
     #     # Update progress
     #     $percentComplete = [math]::Round(($i / $TotalCount) * 100)
-    #     Write-Progress -Activity "Creating Facegen..." -Status "Processing..." -PercentComplete $percentComplete
+    #     Write-Progress -Activity "Creating Facegen..." -Status "Processing $LooseFilesToDelete[$i]" -PercentComplete $percentComplete
 
-    #     # Check if a file exists
-    #     foreach ($file in $LooseFilesToDelete) {
-    #         if (Test-Path -Path $file) {
-    #             $i++
-    #         } else {
-    #             Start-Sleep -Milliseconds $milli
-    #         }
+    #     # Check if file exists
+    #     if (Test-Path -Path $LooseFilesToDelete[$i]) {
+    #         $i++
+    #     } else {
+    #         Start-Sleep -Seconds 1
     #     }
     # }
     # Write-Progress -Activity "Creating Facegen..." -Status "Completed" -PercentComplete 100
+
+    while ($true) {
+        if (Test-Path -Path $LooseFilesToDelete[0]) {
+            Write-Host "Creation Kit created a file."
+            break
+        } else {
+            Write-Host "Waiting for Creation Kit to make a file..."
+            Start-Sleep -Seconds 5
+        }
+    }
 
     if (!($process.HasExited)) {
         Wait-Process -InputObject $process
