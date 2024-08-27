@@ -694,9 +694,13 @@ begin
 
     if SameText(ruleType, 'NPC') then begin
         key := cbkey.Text;
+        idx := IndexOfCaseInsensitive(slNPCRecords, key);
+        if idx > -1 then key := slNPCRecords[idx];
     end
     else begin
         key := cbkey.Text;
+        idx := IndexOfCaseInsensitive(slPluginFiles, key);
+        if idx > -1 then key := slPluginFiles[idx];
     end;
 
     Exclusive := chkExclusive.Checked;
@@ -2130,6 +2134,19 @@ begin
     if not DirectoryExists(f) then
         if not ForceDirectories(f) then
             raise Exception.Create('Can not create destination directory ' + f);
+end;
+
+function IndexOfCaseInsensitive(sl: TStringList; s: string): integer;
+var
+    i: integer;
+begin
+    Result := -1;
+    for i := 0 to Pred(sl.Count) do begin
+        if ContainsText(sl[i], s) then begin
+            Result := i;
+            Break;
+        end;
+    end;
 end;
 
 end.
