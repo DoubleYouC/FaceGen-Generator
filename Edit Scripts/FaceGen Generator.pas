@@ -1109,13 +1109,14 @@ end;
 
 procedure CollectAssets;
 var
-    slArchivesToAdd, slArchivedFiles: TStringList;
+    slArchivesToAdd, slArchivedFiles, slLooseFiles: TStringList;
     slContainers: TwbFastStringList;
     i, j, idx: integer;
     f, s, archive, filename, folder, masterFile: string;
 begin
     slContainers := TwbFastStringList.Create;
     slArchivesToAdd := TStringList.Create;
+
     joTextureContainer := TJsonObject.Create;
 
     ResourceContainerList(slContainers);
@@ -1141,30 +1142,56 @@ begin
         if ContainsText(archive, ' - Voices_pl.ba2') then continue;
         if ContainsText(archive, ' - Voices_ptbr.ba2') then continue;
         if ContainsText(archive, ' - Voices_ru.ba2') then continue;
-        if archive = '' then continue;
-        if ContainsText(archive, ' - Main.ba2') or ContainsText(archive, ' - Textures.ba2') then begin
+        if archive = '' then begin
+            if not bCompressTextures then continue;
+            slLooseFiles := TStringList.Create;
+            ResourceList(slContainers[i], slLooseFiles);
+            for j := 0 to Pred(slLooseFiles.Count) do begin
+                f := LowerCase(slLooseFiles[j]);
+                if slTextures.IndexOf(f) > -1 then begin
+                    AddMessage('Loose face texture found:' + #9 + f);
+                    continue;
+                end;
+                if slBC5Textures.IndexOf(f) > -1 then begin
+                    AddMessage('Loose face texture found:' + #9 + f);
+                    continue;
+                end;
+                if slTintTextures.IndexOf(f) > -1 then begin
+                    AddMessage('Loose face texture found:' + #9 + f);
+                    continue;
+                end;
+            end;
+            slLooseFiles.Free;
+            continue;
+        end;
+        if ContainsText(archive, ' - Main.ba2') or ContainsText(archive, ' - Textures') then begin
             slArchivedFiles := TStringList.Create;
             ResourceList(slContainers[i], slArchivedFiles);
             for j := 0 to Pred(slArchivedFiles.Count) do begin
                 f := LowerCase(slArchivedFiles[j]);
                 idx := slAssets.IndexOf(f);
                 if idx > -1 then begin
-                    slArchivesToAdd.Add(archive);
-                    masterFile := GetMasterFromArchive(archive);
-                    if masterFile <> '' then begin
-                        AddMasterIfMissing(iPluginFile, masterFile);
-                        SortMasters(iPluginFile);
+                    if ContainsText(archive, ' - Main.ba2') or ContainsText(archive, ' - Textures.ba2') then begin
+                        slArchivesToAdd.Add(archive);
+                        masterFile := GetMasterFromArchive(archive);
+                        if masterFile <> '' then begin
+                            AddMasterIfMissing(iPluginFile, masterFile);
+                            SortMasters(iPluginFile);
+                        end;
                     end;
+                    if not bCompressTextures then break;
                     if slTextures.IndexOf(f) > -1 then begin
                         joTextureContainer.O[f].S['container'] := slContainers[i];
+                        continue;
                     end;
                     if slBC5Textures.IndexOf(f) > -1 then begin
                         joTextureContainer.O[f].S['container'] := slContainers[i];
+                        continue;
                     end;
                     if slTintTextures.IndexOf(f) > -1 then begin
                         joTextureContainer.O[f].S['container'] := slContainers[i];
+                        continue;
                     end;
-                    break;
                 end;
             end;
 
