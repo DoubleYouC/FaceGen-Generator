@@ -49,6 +49,10 @@ var
 begin
     for i := 0 to Pred(joFaces.A['NPCsToCopy'].Count) do begin
         key := joFaces.A['NPCsToCopy'].S[i];
+        if not ResourceExists(key) then begin
+            AddMessage('Warning: Missing expected facegen mesh file.' + #9 + key);
+            continue;
+        end;
         AddMessage('Copying ' + key + ' to ' + sVEFSDir + '\Temp\' + key);
         nif := TwbNifFile.Create;
         try
@@ -69,6 +73,10 @@ var
 begin
     for i := 0 to Pred(joFaces.O['NPCsToPatch'].Count) do begin
         model := joFaces.O['NPCsToPatch'].Names[i];
+        if not ResourceExists(model) then begin
+            AddMessage('Warning: Missing expected facegen mesh file.' + #9 + model);
+            continue;
+        end;
         headpart := joFaces.O['NPCsToPatch'].O[model].S['headpart'];
         headpartModel := joFaces.O['Headparts with Cloth Data'].O[headpart].S['model'];
         PatchBSClothExtraData(headpartModel, model);
