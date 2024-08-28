@@ -92,7 +92,6 @@ $script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
 $script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
 $script:tempFaceGenTextures = Join-Path $script:tempfolder "Textures\Actors\Character\FaceCustomization"
 $script:tempBaseFaceTextures = Join-Path $script:tempfolder -ChildPath "Textures"
-$tempBaseFaceTexturesArchive = Join-Path $script:data "FaceGenPatch - Textures.ba2"
 $script:FacesJson = Join-Path $scriptDir "Faces.json"
 
 $script:FacegenMeshes = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
@@ -180,12 +179,13 @@ function CheckForFacegenPatch {
 
     while ($true) {
         if (Test-Path -Path $scriptDir\Faces.json) {
-            Write-Host "Faces.json found."
+            Write-Host "xEdit script complete."
             break
         } else {
-            Write-Host "Waiting for Faces.json..."
+            Write-Host "Waiting for xEdit script to finish..."
             if ($script:xEditProcess.HasExited){
                 Write-Host "xEdit was terminated prematurely. VEFS will now close."
+                if (Test-Path -Path $script:facegenpatch) { Remove-Item -LiteralPath $script:facegenpatch }
                 Pause
                 Exit
             }
@@ -369,7 +369,6 @@ try {
     $Mode = [string]$script:configfile.Mode
     $script:RunElric = [string]$script:configFile.RunElric
     $MaxTextureSize = [string]$script:configFile.MaxTextureSize
-    $CompressTextures = [string]$script:configFile.CompressTextures
 
     $script:FacesInfo = Get-Content -Path $FacesJson -Raw | ConvertFrom-Json
     $LooseFilesToDelete = $FacesInfo.LooseFilesToDelete
@@ -381,13 +380,68 @@ try {
     $meshesarchive = Join-Path $script:data "$PluginName - Main.ba2"
     $texturesarchive = Join-Path $script:data "$PluginName - Textures.ba2"
     if ($FaceCount -eq "0") {
-        Write-Host "No faces require FaceGen Generation. VEFS will now close."
+        Write-Host "No faces will be generated with the Creation Kit."
         if ($NeedPlugin -eq "false") {
             Remove-Item -LiteralPath $script:facegenpatch
         }
         if ($Mode -eq "Quick Face Fix") {
             Copy-Item $script:facegenpatch -Destination "$data\$PluginName.esp" -Force
             Remove-Item -LiteralPath $script:facegenpatch
+            Write-Host "Quick Face Fix mode finished."
+        }
+        if ($Mode -eq "Fix Face Textures") {
+            $TotalCount = $TexturesToProcess.Count + $tintTexturesToProcess.Count + $bc5TexturesToProcess.Count
+            Write-Host "Converting $TotalCount textures to $MaxTextureSize resolution..."
+            $count = 0
+
+            $texconvProcess = @()
+            foreach ($file in $TexturesToProcess) {
+                if (Test-Path -LiteralPath $file) {
+                    $outputpath = [System.IO.Path]::GetDirectoryName($file)
+                    $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+                    $count++
+                    $percentComplete = [math]::Round(($count / $TotalCount) * 100)
+                    Write-Progress -Activity "Converting Textures..." -Status "Processing $count of $TotalCount`: $file..." -PercentComplete $percentComplete
+                } else {
+                    Write-Host "File not found: $file"
+                }
+            }
+            foreach ($file in $tintTexturesToProcess) {
+                if (Test-Path -LiteralPath $file) {
+                    $outputpath = [System.IO.Path]::GetDirectoryName($file)
+                    $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC4_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+                    $count++
+                    $percentComplete = [math]::Round(($count / $TotalCount) * 100)
+                    Write-Progress -Activity "Converting Textures..." -Status "Processing $count of $TotalCount`: $file..." -PercentComplete $percentComplete
+                } else {
+                    Write-Host "File not found: $file"
+                }
+            }
+            foreach ($file in $bc5TexturesToProcess) {
+                if (Test-Path -LiteralPath $file) {
+                    $outputpath = [System.IO.Path]::GetDirectoryName($file)
+                    $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+                    $count++
+                    $percentComplete = [math]::Round(($count / $TotalCount) * 100)
+                    Write-Progress -Activity "Converting Textures..." -Status "Processing $count of $TotalCount`: $file..." -PercentComplete $percentComplete
+                } else {
+                    Write-Host "File not found: $file"
+                }
+            }
+            $texconvProcess | ForEach-Object { $_ | Wait-Process }
+            Write-Progress -Activity "Converting Textures..." -Status "Completed" -PercentComplete 100
+            Write-Host "Done converting textures."
+            Write-Host "Creating Face Textures.zip..."
+            Compress-Archive -Path "$tempBaseFaceTextures" -DestinationPath "$scriptDir\Face Textures.zip" -Force
+            $wshell = New-Object -ComObject Wscript.Shell
+            $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
+            if ($decision -eq 6) {
+                Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
+                Write-Host "`"$script:tempfolder`" was deleted."
+            } else {
+                Write-Host "`"$script:tempfolder`" was NOT deleted."
+            }
+            Write-Host "VEFS Mode Fix Face Textures Done. Please install Face Textures.zip in your mod manager."
         }
         Pause
         Exit
@@ -395,57 +449,11 @@ try {
         Write-Host "Faces to make: $FaceCount"
     }
     if ($Mode -eq "Quick Face Fix") {
-        Write-Host "Quick Face Fix mode finished. VEFS will now close."
         Copy-Item $script:facegenpatch -Destination "$data\$PluginName.esp" -Force
         Remove-Item -LiteralPath $script:facegenpatch
+        Write-Host "Quick Face Fix mode finished."
         Pause
         Exit
-    }
-    ##############################################################################
-    # Compress face textures
-    ##############################################################################
-    if ($CompressTextures -eq "true") {
-        Write-Host "Converting textures..."
-
-        $texconvProcess = @()
-        foreach ($file in $TexturesToProcess) {
-            if (Test-Path -LiteralPath $file) {
-                $outputpath = [System.IO.Path]::GetDirectoryName($file)
-                $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
-            } else {
-                Write-Host "File not found: $file"
-            }
-        }
-        foreach ($file in $tintTexturesToProcess) {
-            if (Test-Path -LiteralPath $file) {
-                $outputpath = [System.IO.Path]::GetDirectoryName($file)
-                $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC4_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
-            } else {
-                Write-Host "File not found: $file"
-            }
-        }
-        foreach ($file in $bc5TexturesToProcess) {
-            if (Test-Path -LiteralPath $file) {
-                $outputpath = [System.IO.Path]::GetDirectoryName($file)
-                $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC5_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
-            } else {
-                Write-Host "File not found: $file"
-            }
-        }
-        $texconvProcess | ForEach-Object { $_ | Wait-Process }
-        Write-Host "Done converting textures."
-
-        #Create textures archive
-        $textureBaseArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:tempBaseFaceTextures`" -r=`"$script:tempfolder`" -c=`"$tempBaseFaceTexturesArchive`" -f=DDS" -PassThru
-        if (!($textureBaseArchiveProcess.HasExited)) {
-            Wait-Process -InputObject $textureBaseArchiveProcess
-        }
-        try {
-            Get-Process -Name $textureBaseArchiveProcess -ErrorAction Stop
-            Read-Host "Press Any Key after Archive2 has closed"
-        } catch {
-            Write-Host "Archive2 has exited."
-        }
     }
 
     ##############################################################################
@@ -633,7 +641,6 @@ try {
     } catch {
         Write-Host "Archive2 has exited."
     }
-    if (Test-Path -Path $tempBaseFaceTexturesArchive) { Remove-Item -LiteralPath $tempBaseFaceTexturesArchive -Force }
     # Check if the -clean argument was passed
     if ($args -contains "-clean") {
         # Automatically delete loose files without prompting

@@ -14,14 +14,14 @@ var
     tlRace, tlNpc, tlTxst, tlCopyToReal, tlNPCid: TList;
     slModels, slTextures, slBC5Textures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds: TStringList;
     slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
-    rbFaceGenPreset, rbOnlyMissing, rbAll: TRadioButton;
     joFaces, joConfig, joRules, joUserRules, joTextureContainer: TJsonObject;
-    uiScale, maxTextureSize: integer;
+    uiScale, maxTextureSize, largestTextureSize: integer;
 
     lvRules: TListView;
     btnRuleOk, btnRuleCancel: TButton;
-    cbNPCPlugin: TComboBox;
-    cbkey: TComboBox;
+    cbkey, cbResolution, cbMaxTextureSize, cbNPCPlugin: TComboBox;
+    edPluginName: TEdit;
+    rbFaceGenPreset, rbOnlyMissing, rbAll, rbFixFaceTextures: TRadioButton;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -42,7 +42,8 @@ begin
     CreateObjects;
     bNeedPlugin := false;
     sLastRuleType := 'Plugin';
-    maxTextureSize := 1024;
+    maxTextureSize := 2048;
+    largestTextureSize := 256;
 
     //Get scaling
     uiScale := Screen.PixelsPerInch * 100 / 96;
@@ -58,7 +59,6 @@ begin
 
     if joConfig.Contains('PluginName') then sRealPlugin := joConfig.S['PluginName']
     else sRealPlugin := 'FaceGen Output';
-    bCompressTextures := StrToBool(joConfig.S['CompressTextures']);
 
     bCKPEExists := false;
     if FileExists(GamePath + 'CreationKitPlatformExtended.ini') then begin
@@ -90,6 +90,10 @@ begin
         AddMessage('Mode: Only Missing');
         joConfig.S['Mode'] := 'Only Missing';
     end
+    else if bCompressTextures then begin
+        AddMessage('Mode: Fix Face Textures');
+        joConfig.S['Mode'] := 'Fix Face Textures';
+    end
     else if bQuickFaceFix then begin
         AddMessage('Mode: Quick Face Fix');
         joConfig.S['Mode'] := 'Quick Face Fix';
@@ -99,7 +103,7 @@ begin
         joConfig.S['Mode'] := 'All';
     end;
 
-    if not bQuickFaceFix then begin
+    if bAll or bOnlyMissing then begin
         if not RequirementsCheck then begin
             Result := 1;
             Exit;
@@ -155,6 +159,7 @@ begin
     end;
     joUserRules.Free;
     joConfig.S['NeedPlugin'] := bNeedPlugin;
+    if (maxTextureSize > largestTextureSize) then maxTextureSize := largestTextureSize;
     joConfig.S['MaxTextureSize'] := maxTextureSize;
     joConfig.SaveToFile(sVEFSDir + '\config.json', False, TEncoding.UTF8, True);
     joConfig.Free;
@@ -279,10 +284,9 @@ var
     gbOptions, gbMode: TGroupBox;
     picVefs: TPicture;
     fImage: TImage;
-    cbResolution: TComboBox;
     chkElric, chkCompressTextures: TCheckBox;
-    edPluginName: TEdit;
     ini: TIniFile;
+    lblMaxTextureSize: TLabel;
     bCKPEExists: Boolean;
 begin
     bCKPEExists := false;
@@ -340,17 +344,31 @@ begin
         rbFaceGenPreset.Left := 16;
         rbFaceGenPreset.Top := 24;
         rbFaceGenPreset.Width := 100;
+
         rbFaceGenPreset.Caption := 'Quick Face Fix';
         rbFaceGenPreset.Hint := 'Copies only NPCs to patch for whom facegen is missing,'
              + #13#10 + 'which will otherwise produce a missing head,'
              + #13#10 + 'and sets the "Is CharGen Face Preset" flag.'
              + #13#10 + 'The game will generate the face, which may cause stutter.';
         rbFaceGenPreset.ShowHint := True;
+        rbFixFaceTextures := TRadioButton.Create(gbMode);
+        rbFixFaceTextures.Name := 'rbFixFaceTextures';
+        rbFixFaceTextures.Parent := gbMode;
+        rbFixFaceTextures.Left := rbFaceGenPreset.Left + rbFaceGenPreset.Width + 20;
+        rbFixFaceTextures.Top := rbFaceGenPreset.Top;
+        rbFixFaceTextures.Width := 110;
+        rbFixFaceTextures.Caption := 'Fix Face Textures';
+        rbFixFaceTextures.Hint := 'Automatically extracts all textures and forces them' +
+            + #13#10 + 'into compatible format and size to prevent'
+            + #13#10 + 'textures failing to load. This will create'
+            + #13#10 + 'a Face Textures.zip file for you to install.'
+            + #13#10 + 'This is used to fix the so called Rusty Face bug.';
+        rbFixFaceTextures.ShowHint := True;
 
         rbOnlyMissing := TRadioButton.Create(gbMode);
         rbOnlyMissing.Name := 'rbOnlyMissing';
         rbOnlyMissing.Parent := gbMode;
-        rbOnlyMissing.Left := rbFaceGenPreset.Left + rbFaceGenPreset.Width + 20;
+        rbOnlyMissing.Left := rbFixFaceTextures.Left + rbFixFaceTextures.Width + 20;
         rbOnlyMissing.Top := rbFaceGenPreset.Top;
         rbOnlyMissing.Width := 150;
         rbOnlyMissing.Caption := 'Generate Missing Faces';
@@ -359,6 +377,7 @@ begin
              + #13#10 + 'This will be used to generate FaceGen via the Creation Kit.';
         rbOnlyMissing.ShowHint := True;
         rbOnlyMissing.Checked := True;
+
 
         rbAll := TRadioButton.Create(gbMode);
         rbAll.Name := 'rbAll';
@@ -387,22 +406,22 @@ begin
         // chkElric.Width := 100;
         // chkElric.Caption := 'Run Elric';
 
-        chkCompressTextures := TCheckBox.Create(gbOptions);
-        chkCompressTextures.Parent := gbOptions;
-        chkCompressTextures.Left := 16;
-        chkCompressTextures.Top := 25;
-        chkCompressTextures.Width := 110;
-        chkCompressTextures.Caption := 'Fix Face Textures';
-        chkCompressTextures.Hint := 'Automatically extracts all textures and forces them' +
-            + #13#10 + 'into compatible format and size to prevent'
-            + #13#10 + 'textures failing to load. This requires all'
-            + #13#10 + 'installed face textures to be in archives, or it'
-            + #13#10 + 'will not work.';
-        chkCompressTextures.ShowHint := True;
+        // chkCompressTextures := TCheckBox.Create(gbOptions);
+        // chkCompressTextures.Parent := gbOptions;
+        // chkCompressTextures.Left := 16;
+        // chkCompressTextures.Top := 25;
+        // chkCompressTextures.Width := 110;
+        // chkCompressTextures.Caption := 'Fix Face Textures';
+        // chkCompressTextures.Hint := 'Automatically extracts all textures and forces them' +
+        //     + #13#10 + 'into compatible format and size to prevent'
+        //     + #13#10 + 'textures failing to load. This requires all'
+        //     + #13#10 + 'installed face textures to be in archives, or it'
+        //     + #13#10 + 'will not work.';
+        // chkCompressTextures.ShowHint := True;
 
         cbResolution := TComboBox.Create(gbOptions);
         cbResolution.Parent := gbOptions;
-        cbResolution.Left := rbOnlyMissing.Left + 60;
+        cbResolution.Left := rbFaceGenPreset.Width + 24;
         cbResolution.Top := 24;
         cbResolution.Width := 50;
         cbResolution.Style := csDropDownList;
@@ -410,7 +429,20 @@ begin
         cbResolution.ItemIndex := slResolutions.IndexOf(sResolution);
         cbResolution.Hint := 'Sets the texture resolution.';
         cbResolution.ShowHint := True;
-        CreateLabel(gbOptions, rbOnlyMissing.Left, cbResolution.Top + 3, 'Resolution');
+        CreateLabel(gbOptions, 16, cbResolution.Top + 3, 'FaceGen Resolution');
+
+        cbMaxTextureSize := TComboBox.Create(gbOptions);
+        cbMaxTextureSize.Parent := gbOptions;
+        cbMaxTextureSize.Top := 24;
+        cbMaxTextureSize.Width := 50;
+        cbMaxTextureSize.Style := csDropDownList;
+        cbMaxTextureSize.Items.Assign(slResolutions);
+        cbMaxTextureSize.ItemIndex := slResolutions.IndexOf(sResolution);
+        cbMaxTextureSize.Hint := 'Sets the maximum face texture resolution.';
+        cbMaxTextureSize.ShowHint := True;
+        lblMaxTextureSize := CreateLabel(gbOptions, cbResolution.Left + cbResolution.Width + 24, cbMaxTextureSize.Top + 3, 'Face Texture Size Limit');
+        cbMaxTextureSize.Left := lblMaxTextureSize.Left + lblMaxTextureSize.Width + 4;
+        cbMaxTextureSize.Enabled := False;
 
         btnStart := TButton.Create(frm);
         btnStart.Parent := frm;
@@ -450,9 +482,14 @@ begin
         frm.Height := btnStart.Top + btnStart.Height + btnStart.Height + 25;
 
         //chkElric.Checked := StrToBool(joConfig.S['RunElric']);
-        chkCompressTextures.Checked := StrToBool(joConfig.S['CompressTextures']);
+        //chkCompressTextures.Checked := StrToBool(joConfig.S['CompressTextures']);
 
         edPluginName.Text := sRealPlugin;
+
+        rbFaceGenPreset.OnClick := RadioClick;
+        rbFixFaceTextures.OnClick := RadioClick;
+        rbOnlyMissing.OnClick := RadioClick;
+        rbAll.OnClick := RadioClick;
 
         if frm.ShowModal <> mrOk then begin
             Result := False;
@@ -465,7 +502,8 @@ begin
         bQuickFaceFix := rbFaceGenPreset.Checked;
         bAll := rbAll.Checked;
         sResolution := slResolutions[cbResolution.ItemIndex];
-        bCompressTextures := chkCompressTextures.Checked;
+        maxTextureSize := slResolutions[cbMaxTextureSize.ItemIndex];
+        bCompressTextures := rbFixFaceTextures.Checked;
     finally
         frm.Free;
     end;
@@ -865,6 +903,30 @@ begin
     end;
 end;
 
+procedure RadioClick(Sender: TObject);
+begin
+    if rbAll.Checked then begin
+        cbResolution.Enabled := true;
+        cbMaxTextureSize.Enabled := false;
+        edPluginName.Enabled := true;
+    end
+    else if rbFaceGenPreset.Checked then begin
+        cbResolution.Enabled := false;
+        cbMaxTextureSize.Enabled := false;
+        edPluginName.Enabled := true;
+    end
+    else if rbFixFaceTextures.Checked then begin
+        cbResolution.Enabled := false;
+        cbMaxTextureSize.Enabled := true;
+        edPluginName.Enabled := false;
+    end
+    else if rbOnlyMissing.Checked then begin
+        cbResolution.Enabled := true;
+        cbMaxTextureSize.Enabled := false;
+        edPluginName.Enabled := true;
+    end;
+end;
+
 procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 {
     Cancel if Escape key is pressed.
@@ -1154,14 +1216,17 @@ begin
                 f := LowerCase(slLooseFiles[j]);
                 if slTextures.IndexOf(f) > -1 then begin
                     AddMessage('Loose face texture found:' + #9 + f);
+                    joTextureContainer.O[f].S['container'] := slContainers[i];
                     continue;
                 end;
                 if slBC5Textures.IndexOf(f) > -1 then begin
                     AddMessage('Loose face texture found:' + #9 + f);
+                    joTextureContainer.O[f].S['container'] := slContainers[i];
                     continue;
                 end;
                 if slTintTextures.IndexOf(f) > -1 then begin
                     AddMessage('Loose face texture found:' + #9 + f);
+                    joTextureContainer.O[f].S['container'] := slContainers[i];
                     continue;
                 end;
             end;
@@ -1376,13 +1441,18 @@ var
     i, count: integer;
     slNpc: TStringList;
 begin
-    slNpc := TStringList.Create;
     for i := 0 to Pred(tlRace.Count) do begin
         ProcessRace(ObjectToElement(tlRace[i]));
     end;
 
+    if bCompressTextures then begin
+        joConfig.S['Face_Count'] := 0;
+        Exit;
+    end;
+
     GetRules;
 
+    slNpc := TStringList.Create;
     count := 0;
     for i := 0 to Pred(tlNpc.Count) do begin
         ProcessNPC(ObjectToElement(tlNpc[i]), slNpc, count);
@@ -1881,8 +1951,8 @@ begin
         end;
         height := dds.NativeValues['HEADER\dwHeight'];
         width := dds.NativeValues['HEADER\dwWidth'];
-        if (height > maxTextureSize) then maxTextureSize := height;
-        if (width > maxTextureSize) then maxTextureSize := width;
+        if (height > largestTextureSize) then largestTextureSize := height;
+        if (width > largestTextureSize) then largestTextureSize := width;
         Result := IntToStr(height) + ' x ' + IntToStr(width);
     finally
         dds.Free;
