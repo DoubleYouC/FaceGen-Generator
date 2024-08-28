@@ -1179,12 +1179,15 @@ var
     slArchivesToAdd, slArchivedFiles, slLooseFiles: TStringList;
     slContainers: TwbFastStringList;
     i, j, idx: integer;
+    bLooseFaceTextures: boolean;
     f, s, archive, filename, folder, masterFile: string;
 begin
     slContainers := TwbFastStringList.Create;
     slArchivesToAdd := TStringList.Create;
 
     joTextureContainer := TJsonObject.Create;
+
+    bLooseFaceTextures := false;
 
     ResourceContainerList(slContainers);
 
@@ -1218,16 +1221,19 @@ begin
                 if slTextures.IndexOf(f) > -1 then begin
                     AddMessage('Loose face texture found:' + #9 + f);
                     joTextureContainer.O[f].S['container'] := slContainers[i];
+                    bLooseFaceTextures := true;
                     continue;
                 end;
                 if slBC5Textures.IndexOf(f) > -1 then begin
                     AddMessage('Loose face texture found:' + #9 + f);
                     joTextureContainer.O[f].S['container'] := slContainers[i];
+                    bLooseFaceTextures := true;
                     continue;
                 end;
                 if slTintTextures.IndexOf(f) > -1 then begin
                     AddMessage('Loose face texture found:' + #9 + f);
                     joTextureContainer.O[f].S['container'] := slContainers[i];
+                    bLooseFaceTextures := true;
                     continue;
                 end;
             end;
@@ -1279,6 +1285,7 @@ begin
         CopyTextures(slBC5Textures, 'bc5_textures');
         CopyTextures(slTintTextures, 'tint_textures');
     end;
+    joConfig.S['LooseFaceTextures'] := bLooseFaceTextures;
 
     joTextureContainer.Free;
 end;

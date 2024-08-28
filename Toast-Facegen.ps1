@@ -92,6 +92,7 @@ $script:tempfolder = Join-Path $scriptDir -ChildPath "Temp"
 $script:tempFaceGenMeshes = Join-Path $script:tempfolder "Meshes\Actors\Character\FaceGenData\FaceGeom"
 $script:tempFaceGenTextures = Join-Path $script:tempfolder "Textures\Actors\Character\FaceCustomization"
 $script:tempBaseFaceTextures = Join-Path $script:tempfolder -ChildPath "Textures"
+$tempBaseFaceTexturesArchive = Join-Path $script:tempfolder "VEFS Face - Textures.ba2"
 $script:FacesJson = Join-Path $scriptDir "Faces.json"
 
 $script:FacegenMeshes = Join-Path $script:data "Meshes\Actors\Character\FaceGenData\FaceGeom"
@@ -369,6 +370,7 @@ try {
     $Mode = [string]$script:configfile.Mode
     $script:RunElric = [string]$script:configFile.RunElric
     $MaxTextureSize = [string]$script:configFile.MaxTextureSize
+    $LooseFaceTextures = [string]$script:configFile.LooseFaceTextures
 
     $script:FacesInfo = Get-Content -Path $FacesJson -Raw | ConvertFrom-Json
     $LooseFilesToDelete = $FacesInfo.LooseFilesToDelete
@@ -381,13 +383,13 @@ try {
     $texturesarchive = Join-Path $script:data "$PluginName - Textures.ba2"
     if ($FaceCount -eq "0") {
         Write-Host "No faces will be generated with the Creation Kit."
-        if ($NeedPlugin -eq "false") {
-            Remove-Item -LiteralPath $script:facegenpatch
-        }
         if ($Mode -eq "Quick Face Fix") {
             Copy-Item $script:facegenpatch -Destination "$data\$PluginName.esp" -Force
             Remove-Item -LiteralPath $script:facegenpatch
             Write-Host "Quick Face Fix mode finished."
+        }
+        if ($NeedPlugin -eq "false") {
+            Remove-Item -LiteralPath $script:facegenpatch
         }
         if ($Mode -eq "Fix Face Textures") {
             $TotalCount = $TexturesToProcess.Count + $tintTexturesToProcess.Count + $bc5TexturesToProcess.Count
@@ -398,7 +400,11 @@ try {
             foreach ($file in $TexturesToProcess) {
                 if (Test-Path -LiteralPath $file) {
                     $outputpath = [System.IO.Path]::GetDirectoryName($file)
-                    $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+                    if ($LooseFaceTextures -eq "true") {
+                        $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC3_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+                    } else {
+                        $texconvProcess += Start-Process -FilePath $script:Texconv -ArgumentList "-y -w $MaxTextureSize -h $MaxTextureSize -f BC7_UNORM -ft DDS -m 1 -o `"$outputpath`" `"$file`"" -PassThru -WindowStyle hidden
+                    }
                     $count++
                     $percentComplete = [math]::Round(($count / $TotalCount) * 100)
                     Write-Progress -Activity "Converting Textures..." -Status "Processing $count of $TotalCount`: $file..." -PercentComplete $percentComplete
@@ -431,8 +437,29 @@ try {
             $texconvProcess | ForEach-Object { $_ | Wait-Process }
             Write-Progress -Activity "Converting Textures..." -Status "Completed" -PercentComplete 100
             Write-Host "Done converting textures."
-            Write-Host "Creating Face Textures.zip..."
-            Compress-Archive -Path "$tempBaseFaceTextures" -DestinationPath "$scriptDir\Face Textures.zip" -Force
+
+            if ($LooseFaceTextures -eq "false") {
+                #Create textures archive
+                Write-Host "Archiving textures..."
+                $textureBaseArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:tempBaseFaceTextures`" -r=`"$script:tempfolder`" -c=`"$tempBaseFaceTexturesArchive`" -f=DDS" -PassThru
+                if (!($textureBaseArchiveProcess.HasExited)) {
+                    Wait-Process -InputObject $textureBaseArchiveProcess
+                }
+                try {
+                    Get-Process -Name $textureBaseArchiveProcess -ErrorAction Stop
+                    Read-Host "Press Any Key after Archive2 has closed"
+                } catch {
+                    Write-Host "Archive2 has exited."
+                }
+                Write-Host "Done archiving textures."
+            }
+
+            Write-Host "Creating VEFS Face Textures.zip..."
+            if ($LooseFaceTextures -eq "false") {
+                Compress-Archive -Path "$tempBaseFaceTexturesArchive", "$scriptDir\misc\VEFS Face.esp"  -DestinationPath "$scriptDir\VEFS Face Textures.zip" -Force
+            } else {
+                Compress-Archive -Path "$tempBaseFaceTextures" -DestinationPath "$scriptDir\VEFS Face Textures.zip" -Force
+            }
             $wshell = New-Object -ComObject Wscript.Shell
             $decision = $wshell.Popup("Delete temporary files at `"$script:tempfolder`" ?",0,"Delete temporary files?",0x4 + 0x20)
             if ($decision -eq 6) {
@@ -441,7 +468,7 @@ try {
             } else {
                 Write-Host "`"$script:tempfolder`" was NOT deleted."
             }
-            Write-Host "VEFS Mode Fix Face Textures Done. Please install Face Textures.zip in your mod manager."
+            Write-Host "VEFS Mode Fix Face Textures Done. Please install VEFS Face Textures.zip in your mod manager."
         }
         Pause
         Exit
