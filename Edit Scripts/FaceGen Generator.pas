@@ -328,6 +328,7 @@ begin
         edPluginName.Width := 180;
         edPluginName.Hint := 'Sets the output plugin name.';
         edPluginName.ShowHint := True;
+        edPluginName.OnExit := PluginNameHandler;
         CreateLabel(frm, 16, edPluginName.Top + 4, 'Output Plugin:');
 
         gbMode := TGroupBox.Create(frm);
@@ -507,6 +508,18 @@ begin
         bCompressTextures := rbFixFaceTextures.Checked;
     finally
         frm.Free;
+    end;
+end;
+
+procedure PluginNameHandler(Sender: TObject);
+begin
+    if SameText(LowerCase(edPluginName.Text), 'facegenpatch') then begin
+        MessageDlg('Output Plugin cannot be FaceGenPatch.', mtInformation, [mbOk], 0);
+        edPluginName.Text := 'FaceGen Output';
+    end
+    else if SameText(LowerCase(edPluginName.Text), 'vefs face') then begin
+        MessageDlg('Output Plugin cannot be VEFS Face.', mtInformation, [mbOk], 0);
+        edPluginName.Text := 'FaceGen Output';
     end;
 end;
 
