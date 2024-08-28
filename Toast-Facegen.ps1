@@ -491,31 +491,53 @@ try {
     SteamAppIdTxt -appid 19946160
     $process = Start-Process -FilePath $script:CK -WorkingDirectory $script:fo4 -ArgumentList "-ExportFaceGenData:$esp W32" -PassThru
 
-    # $i = 0
-    # $TotalCount = [int]$FaceCount
-    # while ($i -lt $TotalCount) {
-    #     # Update progress
-    #     $percentComplete = [math]::Round(($i / $TotalCount) * 100)
-    #     Write-Progress -Activity "Creating Facegen..." -Status "Processing $LooseFilesToDelete[$i]" -PercentComplete $percentComplete
+    $filestomake = $LooseFilesToDelete
+    $TotalCount = $LooseFilesToDelete.Count
 
-    #     # Check if file exists
-    #     if (Test-Path -Path $LooseFilesToDelete[$i]) {
-    #         $i++
-    #     } else {
-    #         Start-Sleep -Seconds 1
-    #     }
-    # }
-    # Write-Progress -Activity "Creating Facegen..." -Status "Completed" -PercentComplete 100
+    $i = 0
+    $timeout = 0
+    $bFirst = $true
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($i -lt $TotalCount) {
 
-    while ($true) {
-        if (Test-Path -Path $LooseFilesToDelete[0]) {
-            Write-Host "Creation Kit created a file."
-            break
+        $filestomake = $filestomake | Where-Object { -not (Test-Path $_) }
+        $i = $TotalCount - $filestomake.Count
+        $percentComplete = [math]::Round(($i / $TotalCount) * 100)
+        Start-Sleep -Seconds 5
+        $timeout += 5
+
+        try {
+            Get-Process -Name "CreationKit" -ErrorAction Stop
+        } catch {
+            if ($timeout -eq 60) { break }
+            #Times out after 1 minute if the Creation Kit process isn't detected.
+        }
+
+        # How much time has elapsed.
+        $elapsedTime = $stopwatch.Elapsed
+        $timespan = [TimeSpan]::FromSeconds($elapsedTime.TotalSeconds)
+        $formattedTime = "{0:D2}:{1:D2}:{2:D2}" -f $timespan.Hours, $timespan.Minutes, $timespan.Seconds
+
+        if ($i -ne 0) {
+            if ($bFirst) { $timeToLaunch = $elapsedTime.TotalSeconds }
+            $bFirst = $false
+
+            $timer = $elapsedTime.TotalSeconds - $timeToLaunch + 3 #adding 3 seconds so as to not get hopes up.
+
+            # Calculate the average time per item
+            $averageTimePerItemSeconds = $timer / $i
+            $remainingItems = $TotalCount - $i
+
+            # Estimate the remaining time
+            $remainingTimeSeconds = $averageTimePerItemSeconds * $remainingItems
+
+            Write-Progress -Activity "Created $i out of $TotalCount Faces..." -Status "Elapsed time: $formattedTime" -PercentComplete $percentComplete -SecondsRemaining $remainingTimeSeconds
         } else {
-            Write-Host "Waiting for Creation Kit to make a file..."
-            Start-Sleep -Seconds 5
+            Write-Progress -Activity "Created $i out of $TotalCount Faces..." -Status "Elapsed time: $formattedTime" -PercentComplete $percentComplete
         }
     }
+    Write-Progress -Activity "Creating Facegen..." -Status "Completed" -PercentComplete 100 -Completed
+    $stopwatch.Stop()
 
     if (!($process.HasExited)) {
         Wait-Process -InputObject $process
