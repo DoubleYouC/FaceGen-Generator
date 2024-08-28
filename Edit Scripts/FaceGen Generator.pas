@@ -437,7 +437,7 @@ begin
         cbMaxTextureSize.Width := 50;
         cbMaxTextureSize.Style := csDropDownList;
         cbMaxTextureSize.Items.Assign(slResolutions);
-        cbMaxTextureSize.ItemIndex := slResolutions.IndexOf(sResolution);
+        cbMaxTextureSize.ItemIndex := slResolutions.IndexOf(maxTextureSize);
         cbMaxTextureSize.Hint := 'Sets the maximum face texture resolution.';
         cbMaxTextureSize.ShowHint := True;
         lblMaxTextureSize := CreateLabel(gbOptions, cbResolution.Left + cbResolution.Width + 24, cbMaxTextureSize.Top + 3, 'Face Texture Size Limit');
@@ -490,6 +490,7 @@ begin
         rbFixFaceTextures.OnClick := RadioClick;
         rbOnlyMissing.OnClick := RadioClick;
         rbAll.OnClick := RadioClick;
+
 
         if frm.ShowModal <> mrOk then begin
             Result := False;
