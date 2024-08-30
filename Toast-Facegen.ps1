@@ -155,6 +155,16 @@ function GetOrSelectxEditPath {
         exit
     }
 }
+function PatchArchive {
+    param (
+        [string]$file
+    )
+    $fileStream = [System.IO.File]::Open($file, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
+    $fileStream.Seek(4, [System.IO.SeekOrigin]::Begin) | Out-Null
+    $newByte = 0x01
+    $fileStream.WriteByte($newByte)
+    $fileStream.Close()
+}
 
 function SaveSettings {
     # Save the settings
@@ -261,40 +271,40 @@ if ($registryValue -and $registryValue."(Default)") {
     Write-Host "Could not find MO2 installation path."
 } #>
 
-if (-not ('WindowHelper' -as [Type])) {
-    Add-Type -TypeDefinition @"
-    using System;
-    using System.Runtime.InteropServices;
-    using System.Text;
+# if (-not ('WindowHelper' -as [Type])) {
+#     Add-Type -TypeDefinition @"
+#     using System;
+#     using System.Runtime.InteropServices;
+#     using System.Text;
 
-    public struct INPUT
-    {
-        public uint Type;
-        public KEYBDINPUT Data;
-    }
+#     public struct INPUT
+#     {
+#         public uint Type;
+#         public KEYBDINPUT Data;
+#     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    public struct KEYBDINPUT
-    {
-        public ushort wVk;
-        public ushort wScan;
-        public uint dwFlags;
-        public uint time;
-        public IntPtr dwExtraInfo;
-    }
+#     [StructLayout(LayoutKind.Sequential)]
+#     public struct KEYBDINPUT
+#     {
+#         public ushort wVk;
+#         public ushort wScan;
+#         public uint dwFlags;
+#         public uint time;
+#         public IntPtr dwExtraInfo;
+#     }
 
-    public class WindowHelper {
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+#     public class WindowHelper {
+#         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+#         public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
-        [DllImport("user32.dll")]
-        public static extern bool SetForegroundWindow(IntPtr hWnd);
+#         [DllImport("user32.dll")]
+#         public static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        [DllImport("user32.dll")]
-        public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-    }
-"@
-}
+#         [DllImport("user32.dll")]
+#         public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+#     }
+# "@
+# }
 
 # Main script execution
 try {
@@ -377,10 +387,10 @@ try {
     $TexturesToProcess = $FacesInfo.textures
     $tintTexturesToProcess = $FacesInfo.tint_textures
     $bc5TexturesToProcess = $FacesInfo.bc5_textures
-
     $script:PluginName = [string]$script:configfile.PluginName
     $meshesarchive = Join-Path $script:data "$PluginName - Main.ba2"
     $texturesarchive = Join-Path $script:data "$PluginName - Textures.ba2"
+
     if ($FaceCount -eq "0") {
         Write-Host "No faces will be generated with the Creation Kit."
         if ($Mode -eq "Quick Face Fix") {
@@ -452,6 +462,7 @@ try {
                     Write-Host "Archive2 has exited."
                 }
                 Write-Host "Done archiving textures."
+                PatchArchive -file "$tempBaseFaceTexturesArchive"
             }
 
             Write-Host "Creating VEFS Face Textures.zip..."
@@ -690,6 +701,9 @@ try {
     } catch {
         Write-Host "Archive2 has exited."
     }
+    PatchArchive -file "$meshesarchive"
+    PatchArchive -file "$texturesarchive"
+
     # Check if the -clean argument was passed
     if ($args -contains "-clean") {
         # Automatically delete loose files without prompting
