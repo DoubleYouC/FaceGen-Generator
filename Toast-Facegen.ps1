@@ -520,7 +520,7 @@ try {
         try {
             Get-Process -Name "CreationKit" -ErrorAction Stop
         } catch {
-            if ($timeout -eq 60) { break }
+            if ($timeout -ge 60) { break }
             #Times out after 1 minute if the Creation Kit process isn't detected.
         }
 
@@ -617,9 +617,6 @@ try {
     #####################################################################################################
     #####################################################################################################
 
-    #Create textures archive
-    $textureArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=(?i)textures\\actors\\character\\facecustomization\\" -PassThru
-
     #If temp path already exists, wipe it out.
     if (Test-Path -Path "$script:tempfolder") {
         Remove-Item -LiteralPath "$script:tempfolder" -Recurse -Force
@@ -633,6 +630,9 @@ try {
     $wshell.AppActivate('Module Selection')
     Start-Sleep -Seconds 1
     $wshell.SendKeys('~')
+
+    #Create textures archive
+    $textureArchiveProcess = Start-Process -FilePath $script:Archive2 -ArgumentList "`"$script:textures`" -r=`"$script:data`" -c=`"$texturesarchive`" -f=DDS -includeFilters=(?i)textures\\actors\\character\\facecustomization\\" -PassThru
 
     #[System.Windows.Forms.SendKeys]::SendWait({'~'})
 
