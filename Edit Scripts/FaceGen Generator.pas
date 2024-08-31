@@ -12,7 +12,7 @@ var
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric, bCompressTextures: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
     tlRace, tlNpc, tlTxst, tlCopyToReal, tlNPCid: TList;
-    slModels, slTextures, slBC5Textures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds: TStringList;
+    slModels, slTextures, slBC5Textures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds, slBatchNPC: TStringList;
     slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
     joFaces, joConfig, joRules, joUserRules, joTextureContainer: TJsonObject;
     uiScale, maxTextureSize, largestTextureSize: integer;
@@ -138,6 +138,9 @@ begin
     slHdpt.Free;
     slEditorIds.Free;
 
+    slBatchNPC.SaveToFile(GamePath() + 'npcs.txt');
+    slBatchNPC.Free;
+
     slDiffuseTextures.Free;
     slNormalTextures.Free;
     slSpecularTextures.Free;
@@ -238,6 +241,10 @@ begin
     slEverything := TStringList.Create;
     slEverything.Sorted := True;
     slEverything.Duplicates := dupIgnore;
+
+    slBatchNPC := TStringList.Create;
+    slBatchNPC.Sorted := True;
+    slBatchNPC.Duplicates := dupIgnore;
 
     slPluginFiles := TStringList.Create;
 
@@ -1355,16 +1362,18 @@ procedure CollectRecords;
 }
 var
     i, j, idx: integer;
-    filename, recordId, sex: string;
+    filename, recordId, sex, npc_id_string: string;
     r, race: IInterface;
     g: IwbGroupRecord;
     isPlayerChild, MQ101PlayerSpouseMale: IwbMainRecord;
     f, fallout4esm: IwbFile;
     slRace, slNpc, slRaceSex: TStringList;
     bHadFaceGenNPC: Boolean;
+    slNPCExceptions: TStringList;
 begin
     slRace := TStringList.Create;
     slNpc := TStringList.Create;
+    slNPCExceptions := TStringList.Create;
 
     slRaceSex := TStringList.Create;
     slRaceSex.Sorted := True;
@@ -1378,7 +1387,39 @@ begin
         if SameText(filename, 'Fallout4.esm') then begin
             fallout4esm := f;
             isPlayerChild := RecordByFormID(fallout4esm, $001916C4, False); //these are handled special for facegen
-            MQ101PlayerSpouseMale := RecordByFormID(fallout4esm, $000A7D34, False); //handled special for facegen
+            //MQ101PlayerSpouseMale := RecordByFormID(fallout4esm, $000A7D34, False); //handled special for facegen
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $000A7D34, False))); //MQ101PlayerSpouseMale
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00000007, False))); //Player
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5F8, False))); //PresetMale1 "PresetMale1" [NPC_:0018B5F8]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5F9, False))); //PresetMale2 "PresetMale2" [NPC_:0018B5F9]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5FB, False))); //PresetMale4 "PresetMale4" [NPC_:0018B5FB]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $000576D1, False))); //PresetMale6 "PresetMale6" [NPC_:000576D1]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0005A7A1, False))); //PresetMale7 "PresetMale7" [NPC_:0005A7A1]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0005A79F, False))); //PresetMale8 "PresetMale8" [NPC_:0005A79F]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0005A795, False))); //PresetMale9 "PresetMale9" [NPC_:0005A795]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0005A793, False))); //PresetMale10 "PresetMale10" [NPC_:0005A793]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0005A791, False))); //PresetMale11 "PresetMale11" [NPC_:0005A791]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0005A772, False))); //PresetMale12 "PresetMale12" [NPC_:0005A772]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $001E73F4, False))); //PresetMale13 "PresetMale13" [NPC_:001E73F4]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0023228B, False))); //PresetMale14 "PresetMale14" [NPC_:0023228B]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0023228C, False))); //PresetMale15 "PresetMale15" [NPC_:0023228C]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0023228D, False))); //PresetMale16 "PresetMale16" [NPC_:0023228D]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0023228E, False))); //PresetMale17 "PresetMale17" [NPC_:0023228E]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5F7, False))); //PresetFemale1 "PresetFemale1" [NPC_:0018B5F7]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5F6, False))); //PresetFemale2 "PresetFemale2" [NPC_:0018B5F6]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5F5, False))); //PresetFemale3 "PresetFemale3" [NPC_:0018B5F5]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5F4, False))); //PresetFemale4 "PresetFemale4" [NPC_:0018B5F4]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0018B5F3, False))); //PresetFemale5 "PresetFemale5" [NPC_:0018B5F3]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00225B6A, False))); //PresetFemale7 "PresetFemale7" [NPC_:00225B6A]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00225B69, False))); //PresetFemale8 "PresetFemale8" [NPC_:00225B69]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00225B68, False))); //PresetFemale9 "PresetFemale9" [NPC_:00225B68]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00225B67, False))); //PresetFemale10 "PresetFemale10" [NPC_:00225B67]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00231346, False))); //PresetFemale11 "PresetFemale11" [NPC_:00231346]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00231348, False))); //PresetFemale13 "PresetFemale13" [NPC_:00231348]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $00231349, False))); //PresetFemale14 "PresetFemale14" [NPC_:00231349]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0023134A, False))); //PresetFemale15 "PresetFemale15" [NPC_:0023134A]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0023134B, False))); //PresetFemale16 "PresetFemale16" [NPC_:0023134B]
+            slNPCExceptions.Add(NPC_id(RecordByFormID(fallout4esm, $0023134C, False))); //PresetFemale17 "PresetFemale17" [NPC_:0023134C]
         end
         else if SameText(filename, sPatchName) then begin
             iPluginFile := f;
@@ -1421,11 +1462,11 @@ begin
         bHadFaceGenNPC := false;
         for j := 0 to Pred(ElementCount(g)) do begin
             r := WinningOverride(ElementByIndex(g, j));
-            recordId := GetFileName(r) + #9 + ShortName(r);
-            idx := slNpc.IndexOf(recordId);
+            npc_id_string := NPC_id(r);
+            idx := slNpc.IndexOf(npc_id_string);
             if idx > -1 then begin
                 bHadFaceGenNPC := true;
-                joFaces.O['plugins'].O[filename].A['npcs'].Add(NPC_id(r));
+                joFaces.O['plugins'].O[filename].A['npcs'].Add(npc_id_string);
                 continue;
             end;
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
@@ -1433,11 +1474,11 @@ begin
             if idx = -1 then continue;
             if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
-            if GetLoadOrderFormID(r) = GetLoadOrderFormID(MQ101PlayerSpouseMale) then continue;
-            slNpc.Add(recordId);
-            slNPCRecords.Add(NPC_id(r));
+            if slNPCExceptions.IndexOf(npc_id_string) <> -1 then continue;
+            slNpc.Add(npc_id_string);
+            slNPCRecords.Add(npc_id_string);
             tlNpc.Add(r);
-            joFaces.O['plugins'].O[filename].A['npcs'].Add(NPC_id(r));
+            joFaces.O['plugins'].O[filename].A['npcs'].Add(npc_id_string);
             bHadFaceGenNPC := true;
             sex := 'Male';
             if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
@@ -1452,6 +1493,7 @@ begin
     slRace.Free;
     slNpc.Free;
     slRaceSex.Free;
+    slNPCExceptions.Free;
 end;
 
 procedure ProcessRecords;
@@ -1565,7 +1607,7 @@ procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
     Process NPC
 }
 var
-    masterFile, relativeFormid, sn, facegenMeshPath: string;
+    masterFile, relativeFormid, sn, facegenMeshPath, loadOrderFormId, batchLine: string;
     e, headparts, npc, masterRecord, npcnew: IInterface;
     bRemovePreset, bAddPreset, bMissingHere, bAllHere, bWasChargenFacePreset, bPatchedNPC: Boolean;
     i, idx: integer;
@@ -1615,20 +1657,28 @@ begin
     end;
 
     facegenMeshPath := 'Meshes\Actors\Character\FaceGenData\FaceGeom\' + masterFile + '\' + relativeFormid + '.nif';
+    loadOrderFormId := IntToHex(GetLoadOrderFormID(r), 8);
+    batchLine := 'placeatme ' + loadOrderFormId;
     if ElementExists(r, 'Head Parts') then begin
         headparts := ElementByPath(r, 'Head Parts');
         for i := 0 to Pred(ElementCount(headparts)) do begin
             e := WinningOverride(LinksTo(ElementbyIndex(headparts, i)));
             if ProcessHeadPart(e) then begin
-                joFaces.O['NPCsToPatch'].O[facegenMeshPath].S['headpart'] := IntToHex(GetLoadOrderFormID(e), 8);
-                joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
+                if slBatchNPC.IndexOf(batchLine) = -1 then begin
+                    joFaces.O['NPCsToPatch'].O[facegenMeshPath].S['headpart'] := IntToHex(GetLoadOrderFormID(e), 8);
+                    joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
+                    slBatchNPC.Add(batchLine);
+                end;
                 bPatchedNPC := true;
             end;
         end;
     end;
     if not bPatchedNPC then begin
-        joFaces.A['NPCsToCopy'].Add(facegenMeshPath);
-        joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
+        if slBatchNPC.IndexOf(batchLine) = -1 then begin
+            joFaces.A['NPCsToCopy'].Add(facegenMeshPath);
+            joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
+            slBatchNPC.Add(batchLine);
+        end;
     end;
 
 
