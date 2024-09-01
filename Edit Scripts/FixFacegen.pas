@@ -53,16 +53,17 @@ begin
             AddMessage('Warning: Missing expected facegen mesh file.' + #9 + key);
             continue;
         end;
-        AddMessage('Copying ' + key + ' to ' + sVEFSDir + '\Temp\' + key);
-        nif := TwbNifFile.Create;
-        try
-            nif.LoadFromResource(key);
-            folder := ExtractFilePath(key);
-            EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
-            nif.SaveToFile(sVEFSDir + '\Temp\' + key);
-        finally
-            nif.free;
-        end;
+        PatchBSClothExtraData(key);
+        // AddMessage('Copying ' + key + ' to ' + sVEFSDir + '\Temp\' + key);
+        // nif := TwbNifFile.Create;
+        // try
+        //     nif.LoadFromResource(key);
+        //     folder := ExtractFilePath(key);
+        //     EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
+        //     nif.SaveToFile(sVEFSDir + '\Temp\' + key);
+        // finally
+        //     nif.free;
+        // end;
     end;
 end;
 
