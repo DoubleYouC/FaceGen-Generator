@@ -69,7 +69,7 @@ end;
 procedure FixFaces;
 var
     i: integer;
-    model, headpart, headpartModel: string;
+    model: string;
 begin
     for i := 0 to Pred(joFaces.O['NPCsToPatch'].Count) do begin
         model := joFaces.O['NPCsToPatch'].Names[i];
@@ -77,9 +77,7 @@ begin
             AddMessage('Warning: Missing expected facegen mesh file.' + #9 + model);
             continue;
         end;
-        headpart := joFaces.O['NPCsToPatch'].O[model].S['headpart'];
-        headpartModel := joFaces.O['Headparts with Cloth Data'].O[headpart].S['model'];
-        PatchBSClothExtraData(headpartModel, model);
+        PatchBSClothExtraData(model);
     end;
 end;
 
@@ -104,40 +102,128 @@ begin
     end;
 end;
 
-procedure PatchBSClothExtraData(fromNif, toNif: string);
+procedure PatchBSClothExtraData(model: string);
 var
-    j: integer;
+    j, k, clothtype: integer;
     nif, clothnif: TwbNifFile;
     block, cloth: TwbNifBlock;
-    folder: string;
+    folder, headpartModel, editorid: string;
 begin
     nif := TwbNifFile.Create;
     clothnif := TwbNifFile.Create;
+    clothtype := DetectClothType(model);
     try
-        clothnif.LoadFromResource(fromNif);
-        for j := 0 to Pred(clothnif.BlocksCount) do begin
-            cloth := clothnif.Blocks[j];
-
-            if cloth.BlockType = 'BSClothExtraData' then break;
+        if clothtype > 0 then begin
+            headpartModel := ClothNifModel(clothtype);
+            clothnif.LoadFromResource(headpartModel);
+            for k := 0 to Pred(clothnif.BlocksCount) do begin
+                cloth := clothnif.Blocks[k];
+                if cloth.BlockType = 'BSClothExtraData' then break;
+            end;
         end;
 
-        nif.LoadFromResource(toNif);
-        for j := 0 to Pred(nif.BlocksCount) do begin
+        nif.LoadFromResource(model);
+        for j := Pred(nif.BlocksCount) downto 0 do begin
             block := nif.Blocks[j];
 
             if block.BlockType = 'BSClothExtraData' then begin
-                block.Assign(cloth);
-                folder := ExtractFilePath(toNif);
-                EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
-                nif.SaveToFile(sVEFSDir + '\Temp\' + toNif);
-                AddMessage('Updated: ' + sVEFSDir + '\Temp\' + toNif);
+                editorid := nif.Blocks[j-1].EditValues['Name'];
+                if clothtype > 0 then begin
+                    block.Assign(cloth);
+                end
+                else begin
+                    AddMessage('Removing BSClothExtraData from ' + #9 + editorid + #9 + ' on ' + #9 + model);
+                    nif.Delete(j);
+                end;
+            end;
+        end;
+        folder := ExtractFilePath(model);
+        EnsureDirectoryExists(sVEFSDir + '\Temp\' + folder);
+        nif.SaveToFile(sVEFSDir + '\Temp\' + model);
+        AddMessage('Updated: ' + sVEFSDir + '\Temp\' + model);
+    finally
+        nif.free;
+        clothnif.free;
+    end;
+end;
+
+function DetectClothType(model: string): integer;
+{
+    Searches for bones and returns the correct BSClothExtraData type in integer form.
+
+    #0
+    Does not have valid cloth
+
+    #1
+    Hair_C_Cloth00
+    Hair_C_Cloth01
+    Hair_C_Cloth02
+    Hair_L_Cloth00
+    Hair_L_Cloth01
+    Hair_L_Cloth02
+    Hair_R_Cloth00
+    Hair_R_Cloth01
+    Hair_R_Cloth02
+    meshes\\actors\\character\\characterassets\\hair\\female\\femalehair21.nif
+
+    #2
+    Ponytail_C_Cloth01
+    Ponytail_C_Cloth02
+    Ponytail_C_Cloth03
+    Ponytail_C_Cloth04
+    meshes\\actors\\character\\characterassets\\hair\\female\\femalehair30.nif
+
+    #3
+    SideTail_BN_B_004
+    SideTail_BN_B_003
+    SideTail_BN_B_002
+    SideTail_BN_B_001
+    SideTail_BN_A_004
+    SideTail_BN_A_003
+    SideTail_BN_A_002
+    SideTail_BN_A_001
+    meshes\\actors\\character\\characterassets\\hair\\female\\femalehair32.nif
+}
+var
+    nif: TwbNifFile;
+    cloth1, cloth2, cloth3, blockName: string;
+    j: integer;
+    block: TwbNifBlock;
+begin
+    Result := 0;
+    cloth1 := 'Hair_C_Cloth00,Hair_C_Cloth01,Hair_C_Cloth02,Hair_L_Cloth00,Hair_L_Cloth01,Hair_L_Cloth02,Hair_R_Cloth00,Hair_R_Cloth01,Hair_R_Cloth02';
+    cloth2 := 'Ponytail_C_Cloth01,Ponytail_C_Cloth02,Ponytail_C_Cloth03,Ponytail_C_Cloth04';
+    cloth3 := 'SideTail_BN_B_004,SideTail_BN_B_003,SideTail_BN_B_002,SideTail_BN_B_001,SideTail_BN_A_004,SideTail_BN_A_003,SideTail_BN_A_002,SideTail_BN_A_001';
+    nif := TwbNifFile.Create;
+    try
+        nif.LoadFromResource(model);
+        for j := 0 to Pred(nif.BlocksCount) do begin
+            block := nif.Blocks[j];
+            if block.BlockType <> 'NiNode' then continue;
+            blockName := block.EditValues['Name'];
+            if Pos(blockName, cloth1) > 0 then begin
+                Result := 1;
+                break;
+            end;
+            if Pos(blockName, cloth2) > 0 then begin
+                Result := 2;
+                break;
+            end;
+            if Pos(blockName, cloth3) > 0 then begin
+                Result := 3;
                 break;
             end;
         end;
     finally
         nif.free;
-        clothnif.free;
     end;
+end;
+
+function ClothNifModel(i: integer): string;
+begin
+    if i = 1 then Result := 'meshes\actors\character\characterassets\hair\female\femalehair21.nif';
+    if i = 2 then Result := 'meshes\actors\character\characterassets\hair\female\femalehair30.nif';
+    if i = 3 then Result := 'meshes\actors\character\characterassets\hair\female\femalehair32.nif';
 end;
 
 function TrimRightChars(s: string; chars: integer): string;
