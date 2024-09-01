@@ -12,7 +12,7 @@ var
     bBatchMode, bQuickFaceFix, bOnlyMissing, bAll, bNeedPlugin, bUserRulesChanged, bSaveUserRules, bElric, bCompressTextures: Boolean;
     sCKFixesINI, sVEFSDir, sPicVefs, sResolution, sRealPlugin, sLastRuleType: string;
     tlRace, tlNpc, tlTxst, tlCopyToReal, tlNPCid: TList;
-    slModels, slTextures, slBC5Textures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds, slBatchNPC: TStringList;
+    slModels, slTextures, slBC5Textures, slMaterials, slAssets, slPluginFiles, slDiffuseTextures, slNormalTextures, slSpecularTextures, slNPCid, slHdpt, slEditorIds, slBatchNPC, slBatchNPCCloth: TStringList;
     slTintTextures, slResolutions, slNPCRecords, slNPCPlugin, slNPCMatches, slPresetAdd, slPresetRemove, slMissingOnly, slEverything, slCharGenPreset, slFaceGenMode: TStringList;
     joFaces, joConfig, joRules, joUserRules, joTextureContainer: TJsonObject;
     uiScale, maxTextureSize, largestTextureSize: integer;
@@ -140,6 +140,8 @@ begin
 
     slBatchNPC.SaveToFile(GamePath() + 'npcs.txt');
     slBatchNPC.Free;
+    slBatchNPCCloth.SaveToFile(GamePath() + 'npcscloth.txt');
+    slBatchNPCCloth.Free;
 
     slDiffuseTextures.Free;
     slNormalTextures.Free;
@@ -245,6 +247,10 @@ begin
     slBatchNPC := TStringList.Create;
     slBatchNPC.Sorted := True;
     slBatchNPC.Duplicates := dupIgnore;
+
+    slBatchNPCCloth := TStringList.Create;
+    slBatchNPCCloth.Sorted := True;
+    slBatchNPCCloth.Duplicates := dupIgnore;
 
     slPluginFiles := TStringList.Create;
 
@@ -1536,13 +1542,16 @@ function ProcessHeadPart(r: IInterface): boolean;
 }
 var
     k, editorInc, idx: integer;
-    editorId, material, model, newEditorId, recordId, tri, loadOrderFormId: string;
+    editorId, material, model, newEditorId, recordId, tri, loadOrderFormId, filename: string;
     g: IwbGroupRecord;
     f: IwbFile;
-    e, eMaterials, eParts, headpart: IInterface;
+    e, eMaterials, eParts, headpart, eExtraParts, hnam: IInterface;
 begin
     Result := false;
-    recordId := GetFileName(r) + #9 + ShortName(r);
+    filename := GetFileName(r);
+    AddMasterIfMissing(iPluginFile, filename);
+    SortMasters(iPluginFile);
+    recordId := filename + #9 + ShortName(r);
     loadOrderFormId := IntToHex(GetLoadOrderFormID(r), 8);
     if joFaces.O['Headparts with Cloth Data'].Contains(loadOrderFormId) then begin
         Result := true;
@@ -1571,6 +1580,14 @@ begin
             slAssets.Add(material);
         end;
     end;
+    if ElementExists(r, 'Extra Parts') then begin
+        eExtraParts := ElementByPath(r, 'Extra Parts');
+        for k := 0 to Pred(ElementCount(eExtraParts)) do begin
+            e := WinningOverride(LinksTo(ElementByIndex(eExtraParts, k)));
+            Result := ProcessHeadPart(e);
+        end;
+    end;
+
     if ElementExists(r, 'Parts') then begin
         eParts := ElementByPath(r, 'Parts');
         for k := 0 to Pred(ElementCount(eParts)) do begin
@@ -1607,10 +1624,11 @@ procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
     Process NPC
 }
 var
-    masterFile, relativeFormid, sn, facegenMeshPath, loadOrderFormId, batchLine: string;
-    e, headparts, npc, masterRecord, npcnew: IInterface;
+    masterFile, relativeFormid, sn, facegenMeshPath, loadOrderFormId, batchLine, sex, pnam: string;
+    e, headparts, npc, masterRecord, npcnew, race, eHeadPart: IInterface;
     bRemovePreset, bAddPreset, bMissingHere, bAllHere, bWasChargenFacePreset, bPatchedNPC: Boolean;
-    i, idx: integer;
+    i, k, idx: integer;
+    slPNAM: TStringList;
 begin
     bRemovePreset := false;
     bAddPreset := false;
@@ -1659,20 +1677,53 @@ begin
     facegenMeshPath := 'Meshes\Actors\Character\FaceGenData\FaceGeom\' + masterFile + '\' + relativeFormid + '.nif';
     loadOrderFormId := IntToHex(GetLoadOrderFormID(r), 8);
     batchLine := 'placeatme ' + loadOrderFormId;
+    slPNAM := TStringList.Create;
     if ElementExists(r, 'Head Parts') then begin
         headparts := ElementByPath(r, 'Head Parts');
         for i := 0 to Pred(ElementCount(headparts)) do begin
             e := WinningOverride(LinksTo(ElementbyIndex(headparts, i)));
+            pnam := GetElementEditValues(e, 'PNAM');
+            slPNAM.Add(pnam);
             if ProcessHeadPart(e) then begin
+                joFaces.O['NPCsToPatch'].O[facegenMeshPath].S[EditorID(e)] := IntToHex(GetLoadOrderFormID(e), 8);
                 if slBatchNPC.IndexOf(batchLine) = -1 then begin
-                    joFaces.O['NPCsToPatch'].O[facegenMeshPath].S['headpart'] := IntToHex(GetLoadOrderFormID(e), 8);
                     joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
                     slBatchNPC.Add(batchLine);
+                    slBatchNPCCloth.Add(batchLine);
+                end;
+                bPatchedNPC := true;
+            end;
+        end;
+    end
+    race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
+    //Male Head Parts (sorted)
+    //  Head Part
+    //    HEAD > Links To HDPT record
+    sex := 'Male';
+    if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
+    if ElementExists(race, sex + ' Head Parts') then begin
+        headparts := ElementByPath(race, sex + ' Head Parts');
+        for k := 0 to Pred(ElementCount(headparts)) do begin
+            eHeadPart := ElementByIndex(headparts, k);
+            e := WinningOverride(LinksTo(ElementByIndex(eHeadPart, 1)));
+            pnam := GetElementEditValues(e, 'PNAM');
+            if not SameText(pnam, 'Misc') then begin
+                if slPNAM.IndexOf(pnam) <> -1 then continue;
+                slPNAM.Add(pnam);
+            end;
+            if ProcessHeadPart(e) then begin
+                joFaces.O['NPCsToPatch'].O[facegenMeshPath].S[EditorID(e)] := IntToHex(GetLoadOrderFormID(e), 8);
+                if slBatchNPC.IndexOf(batchLine) = -1 then begin
+                    joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
+                    slBatchNPC.Add(batchLine);
+                    slBatchNPCCloth.Add(batchLine);
                 end;
                 bPatchedNPC := true;
             end;
         end;
     end;
+    slPNAM.free;
+
     if not bPatchedNPC then begin
         if slBatchNPC.IndexOf(batchLine) = -1 then begin
             joFaces.A['NPCsToCopy'].Add(facegenMeshPath);
@@ -1710,6 +1761,7 @@ begin
 
     if bQuickFaceFix then Exit;
     Remove(ElementByName(npc, 'Items'));
+    Remove(ElementByName(npc, 'DOFT - Default Outfit'));
 
 end;
 
@@ -1721,7 +1773,7 @@ var
     i, k, l, m, textureCount: integer;
     r, e, eTints, eTintGroup, eOptions, eOption, eTextures, eHeadParts, eHeadPart, eHead, eFaceDetails, eFace, eTxst: IInterface;
     bTint: Boolean;
-    recordId, recordIdHere, material, texture, rShortName: string;
+    recordId, recordIdHere, material, texture, rShortName, filename: string;
     slTxst: TStringList;
     tlTxst: TList;
 begin
@@ -1731,7 +1783,10 @@ begin
     //Race
     r := race;
     rShortName := ShortName(r);
-    recordId := GetFileName(r) + #9 + rShortName;
+    filename := GetFileName(r);
+    AddMasterIfMissing(iPluginFile, filename);
+    SortMasters(iPluginFile);
+    recordId := filename + #9 + rShortName;
     AddMessage('---------------------------------------------------------------------------------------');
     AddMessage(recordId);
 
@@ -2035,35 +2090,132 @@ function HairMeshData(f: string): Boolean;
     Gets headpart mesh data.
 }
 var
-    j: integer;
+    j, clothtype: integer;
     nif: TwbNifFile;
-    bWasChanged: boolean;
-    block: TwbNifBlock;
+    bWasChanged, bWasBackedUp, bHadClothData: boolean;
+    block, bsskin: TwbNifBlock;
 begin
     nif := TwbNifFile.Create;
     bWasChanged := false;
+    bWasBackedUp := false;
+    bHadClothData := false;
     Result := false;
+    clothtype := DetectClothType(f);
     try
         nif.LoadFromResource(f);
-        for j := 0 to Pred(nif.BlocksCount) do begin
+
+        //nif.BlocksByType('BSSkin::Instance', True, bsskin);
+
+        for j := Pred(nif.BlocksCount) downto 0 do begin
             block := nif.Blocks[j];
 
             //Add Own Emit if missing
             if block.BlockType = 'BSLightingShaderProperty' then begin
                 if block.NativeValues['Shader Flags 1\Own_Emit'] = 0 then begin
                     EnsureDirectoryExists(wbDataPath + ExtractFilePath(f));
-                    nif.SaveToFile(wbDataPath + f + '.bak');
+                    if not bWasBackedUp then begin
+                        AddMessage('Backup made: ' + #9 + f + '.bak');
+                        nif.SaveToFile(wbDataPath + f + '.bak');
+                        bWasBackedUp := true;
+                    end;
                     block.NativeValues['Shader Flags 1\Own_Emit'] := 1;
                     bWasChanged := true;
                 end;
             end
-            else if block.BlockType = 'BSClothExtraData' then Result := true; //Check for BSClothExtraData
+            else if block.BlockType = 'BSClothExtraData' then begin  //Check for BSClothExtraData
+                if (not bHadClothData) and (clothtype > 0) then begin //the cloth data is expected
+                    bHadClothData := true;
+                    Result := true;
+                end
+                else begin //the cloth data should not exist.
+                    if not bWasBackedUp then begin
+                        AddMessage('Backup made: ' + #9 + f + '.bak');
+                        nif.SaveToFile(wbDataPath + f + '.bak');
+                        bWasBackedUp := true;
+                    end;
+                    AddMessage('Removing invalid BSClothExtraData from ' + #9 + f);
+                    nif.Delete(j);
+                    bWasChanged := true;
+                end;
+            end;
         end;
         if bWasChanged then begin
             nif.SaveToFile(wbDataPath + f);
-            AddMessage('Updated: ' + wbDataPath + f);
+            AddMessage('Updated: ' +#9 + wbDataPath + f);
         end;
 
+    finally
+        nif.free;
+    end;
+end;
+
+function DetectClothType(model: string): integer;
+{
+    Searches for bones and returns the correct BSClothExtraData type in integer form.
+
+    #0
+    Does not have valid cloth
+
+    #1
+    Hair_C_Cloth00
+    Hair_C_Cloth01
+    Hair_C_Cloth02
+    Hair_L_Cloth00
+    Hair_L_Cloth01
+    Hair_L_Cloth02
+    Hair_R_Cloth00
+    Hair_R_Cloth01
+    Hair_R_Cloth02
+    meshes\\actors\\character\\characterassets\\hair\\female\\femalehair21.nif
+
+    #2
+    Ponytail_C_Cloth01
+    Ponytail_C_Cloth02
+    Ponytail_C_Cloth03
+    Ponytail_C_Cloth04
+    meshes\\actors\\character\\characterassets\\hair\\female\\femalehair30.nif
+
+    #3
+    SideTail_BN_B_004
+    SideTail_BN_B_003
+    SideTail_BN_B_002
+    SideTail_BN_B_001
+    SideTail_BN_A_004
+    SideTail_BN_A_003
+    SideTail_BN_A_002
+    SideTail_BN_A_001
+    meshes\\actors\\character\\characterassets\\hair\\female\\femalehair32.nif
+}
+var
+    nif: TwbNifFile;
+    cloth1, cloth2, cloth3, blockName: string;
+    j: integer;
+    block: TwbNifBlock;
+begin
+    Result := 0;
+    cloth1 := 'Hair_C_Cloth00,Hair_C_Cloth01,Hair_C_Cloth02,Hair_L_Cloth00,Hair_L_Cloth01,Hair_L_Cloth02,Hair_R_Cloth00,Hair_R_Cloth01,Hair_R_Cloth02';
+    cloth2 := 'Ponytail_C_Cloth01,Ponytail_C_Cloth02,Ponytail_C_Cloth03,Ponytail_C_Cloth04';
+    cloth3 := 'SideTail_BN_B_004,SideTail_BN_B_003,SideTail_BN_B_002,SideTail_BN_B_001,SideTail_BN_A_004,SideTail_BN_A_003,SideTail_BN_A_002,SideTail_BN_A_001';
+    nif := TwbNifFile.Create;
+    try
+        nif.LoadFromResource(model);
+        for j := 0 to Pred(nif.BlocksCount) do begin
+            block := nif.Blocks[j];
+            if block.BlockType <> 'NiNode' then continue;
+            blockName := block.EditValues['Name'];
+            if Pos(blockName, cloth1) > 0 then begin
+                Result := 1;
+                break;
+            end;
+            if Pos(blockName, cloth2) > 0 then begin
+                Result := 2;
+                break;
+            end;
+            if Pos(blockName, cloth3) > 0 then begin
+                Result := 3;
+                break;
+            end;
+        end;
     finally
         nif.free;
     end;
