@@ -159,11 +159,13 @@ function PatchArchive {
     param (
         [string]$file
     )
-    $fileStream = [System.IO.File]::Open($file, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
-    $fileStream.Seek(4, [System.IO.SeekOrigin]::Begin) | Out-Null
-    $newByte = 0x01
-    $fileStream.WriteByte($newByte)
-    $fileStream.Close()
+    if (Test-Path -Path $file) {
+        $fileStream = [System.IO.File]::Open($file, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite)
+        $fileStream.Seek(4, [System.IO.SeekOrigin]::Begin) | Out-Null
+        $newByte = 0x01
+        $fileStream.WriteByte($newByte)
+        $fileStream.Close()
+    } else { Write-Host "$file was not patched. It doesn't appear to have been made." }
 }
 
 function SaveSettings {
