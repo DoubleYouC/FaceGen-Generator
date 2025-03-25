@@ -1514,10 +1514,7 @@ begin
         ProcessRace(ObjectToElement(tlRace[i]));
     end;
 
-    if bCompressTextures then begin
-        joConfig.S['Face_Count'] := 0;
-        Exit;
-    end;
+
 
     GetRules;
 
@@ -1528,6 +1525,10 @@ begin
     end;
     ListStringsInStringList(slNPC);
     joConfig.S['Face_Count'] := count;
+
+    if bCompressTextures then begin
+        joConfig.S['Face_Count'] := 0;
+    end;
     slNpc.Free;
 
     if bQuickFaceFix then Exit;
@@ -1625,7 +1626,7 @@ procedure ProcessNPC(r: IInterface; var slNPC: TStringList; var count: integer);
 }
 var
     masterFile, relativeFormid, sn, facegenMeshPath, loadOrderFormId, batchLine, sex, pnam: string;
-    e, headparts, npc, masterRecord, npcnew, race, eHeadPart: IInterface;
+    e, headparts, npc, masterRecord, npcnew, race, eHeadPart, headTexture: IInterface;
     bRemovePreset, bAddPreset, bMissingHere, bAllHere, bWasChargenFacePreset, bPatchedNPC: Boolean;
     i, k, idx: integer;
     slPNAM: TStringList;
@@ -1637,6 +1638,12 @@ begin
     bPatchedNPC := false;
 
     sn := NPC_id(r);
+
+    if ElementExists(r, 'FTST') then begin
+        headTexture := WinningOverride(LinksTo(ElementByPath(r, 'FTST')));
+        ProcessTxst(headTexture);
+    end;
+    if bCompressTextures then Exit;
 
     //If any rule sets "Only NPCs Matching" then those NPCs are added to slNPCMatches. Skip this NPC if not in that list.
     if ((slNPCMatches.Count > 0) and (slNPCMatches.IndexOf(sn) = -1)) then begin
@@ -1927,26 +1934,10 @@ begin
     //Txst
     for i := 0 to Pred(tlTxst.Count) do begin
         r := ObjectToElement(tlTxst[i]);
-        recordId := GetFileName(r) + #9 + ShortName(r);
 
         if GetElementEditValues(r, 'DNAM - Flags\Facegen Textures') <> '1' then continue;
 
-        if ElementExists(r, 'Textures (RGB/A)\TX00') then begin
-            AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX00'), 'diffuse');
-        end;
-        if ElementExists(r, 'Textures (RGB/A)\TX01') then begin
-            AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX01'), 'normal');
-        end;
-        if ElementExists(r, 'Textures (RGB/A)\TX07') then begin
-            AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX07'), 'specular');
-        end;
-
-        if ElementExists(r, 'MNAM') then begin
-            material := wbNormalizeResourceName(GetElementEditValues(r, 'MNAM'), resMaterial);
-            slMaterials.Add(material);
-            slAssets.Add(material);
-            AddMaterialTextures(material);
-        end;
+        ProcessTxst(r);
     end;
 
     TextureInfo(rShortName);
@@ -1970,6 +1961,29 @@ begin
     slSpecularTextures.Sorted := True;
     slSpecularTextures.Duplicates := dupIgnore;
 
+end;
+
+procedure ProcessTxst(r: IInterface);
+var
+    recordId, material: string;
+begin
+    recordId := GetFileName(r) + #9 + ShortName(r);
+    if ElementExists(r, 'Textures (RGB/A)\TX00') then begin
+        AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX00'), 'diffuse');
+    end;
+    if ElementExists(r, 'Textures (RGB/A)\TX01') then begin
+        AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX01'), 'normal');
+    end;
+    if ElementExists(r, 'Textures (RGB/A)\TX07') then begin
+        AddTexture(recordId, GetElementEditValues(r, 'Textures (RGB/A)\TX07'), 'specular');
+    end;
+
+    if ElementExists(r, 'MNAM') then begin
+        material := wbNormalizeResourceName(GetElementEditValues(r, 'MNAM'), resMaterial);
+        slMaterials.Add(material);
+        slAssets.Add(material);
+        AddMaterialTextures(material);
+    end;
 end;
 
 procedure TextureInfo(race: string);
