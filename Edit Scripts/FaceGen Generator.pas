@@ -1478,7 +1478,7 @@ begin
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
             idx := tlRace.IndexOf(race);
             if idx = -1 then continue;
-            if GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') = '1' then continue;
+            if GetElementEditValues(r, 'ACBS\Template Flags\Traits') = '1' then continue;
             if KeywordExists(r, isPlayerChild) then continue;
             if slNPCExceptions.IndexOf(npc_id_string) <> -1 then continue;
             slNpc.Add(npc_id_string);
