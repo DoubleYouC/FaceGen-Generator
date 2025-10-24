@@ -915,19 +915,16 @@ procedure frmResize(Sender: TObject);
 var
     frm: TForm;
 begin
-    try
-        frm := TForm(Sender);
-        lvRules.Width := frm.Width - 36;
-        lvRules.Left := (frm.Width - lvRules.Width)/2;
-        lvRules.Height := frm.Height - btnRuleOk.Height - btnRuleOk.Height - btnRuleOk.Height - btnRuleOk.Height;
+    frm := TForm(Sender);
+    if not Assigned(frm) then Exit;
+    lvRules.Width := frm.Width - 36;
+    lvRules.Left := (frm.Width - lvRules.Width)/2;
+    lvRules.Height := frm.Height - btnRuleOk.Height - btnRuleOk.Height - btnRuleOk.Height - btnRuleOk.Height;
 
-        btnRuleOk.Top := lvRules.Height + lvRules.Top + 8;
-        btnRuleCancel.Top := btnRuleOk.Top;
-        btnRuleOk.Left := (frm.Width - btnRuleOk.Width - btnRuleCancel.Width - 8)/2;
-        btnRuleCancel.Left := btnRuleOk.Left + btnRuleOk.Width + 8;
-    except
-        frm := TForm(Sender);
-    end;
+    btnRuleOk.Top := lvRules.Height + lvRules.Top + 8;
+    btnRuleCancel.Top := btnRuleOk.Top;
+    btnRuleOk.Left := (frm.Width - btnRuleOk.Width - btnRuleCancel.Width - 8)/2;
+    btnRuleCancel.Left := btnRuleOk.Left + btnRuleOk.Width + 8;
 end;
 
 procedure RadioClick(Sender: TObject);
