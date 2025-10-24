@@ -21,7 +21,7 @@ var
     btnRuleOk, btnRuleCancel: TButton;
     cbkey, cbResolution, cbMaxTextureSize, cbNPCPlugin: TComboBox;
     edPluginName: TEdit;
-    rbFaceGenPreset, rbOnlyMissing, rbAll, rbFixFaceTextures: TRadioButton;
+    rbOnlyMissing, rbAll, rbFixFaceTextures: TRadioButton;
 
 const
     sPatchName = 'FaceGenPatch.esp';
@@ -36,9 +36,12 @@ function Initialize: integer;
 }
 var
     i: integer;
-    bCKPEExists: boolean;
     ini: TIniFile;
 begin
+    if not RequirementsCheck then begin
+        Result := 1;
+        Exit;
+    end;
     CreateObjects;
     bNeedPlugin := false;
     sLastRuleType := 'Plugin';
@@ -60,14 +63,9 @@ begin
     if joConfig.Contains('PluginName') then sRealPlugin := joConfig.S['PluginName']
     else sRealPlugin := 'FaceGen Output';
 
-    bCKPEExists := false;
-    if FileExists(GamePath + 'CreationKitPlatformExtended.ini') then begin
-        bCKPEExists := true;
-        ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
-        sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
-        if slResolutions.IndexOf(sResolution) = -1 then slResolutions.Add(sResolution);
-    end
-    else sResolution := '2048';
+    ini := TIniFile.Create(sCKFixesINI);
+    sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
+    if slResolutions.IndexOf(sResolution) = -1 then slResolutions.Add(sResolution);
 
     if not bBatchMode then begin
         if not MainMenuForm then begin
@@ -79,12 +77,9 @@ begin
     joConfig.S['Resolution'] := sResolution;
     joConfig.S['RunElric'] := false;
     joConfig.S['CompressTextures'] := bCompressTextures;
-    if bCKPEExists then begin
-        ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution + '				; Sets NxN resolution when exporting textures');
-        ini.WriteString('FaceGen', 'bDisableExportDDS', 'false					; Prevent tint export as DDS');
-        ini.WriteString('FaceGen', 'bDisableExportNIF', 'false					; Prevent facegen geometry export');
-        ini.WriteString('CreationKit', 'bD3D11Patch', 'true						; Makes it possible to initialize both 11.0 and 11.2 version DirectX. So and fixed Nvidia NSight checks. Need Win8.1 and newer.');
-    end;
+    ini.WriteString('FaceGen', 'uTintMaskResolution', sResolution);
+    ini.WriteString('FaceGen', 'bDisableExportDDS', 'false');
+    ini.WriteString('FaceGen', 'bDisableExportNIF', 'false');
 
     if bOnlyMissing then begin
         AddMessage('Mode: Only Missing');
@@ -104,10 +99,6 @@ begin
     end;
 
     if bAll or bOnlyMissing then begin
-        if not RequirementsCheck then begin
-            Result := 1;
-            Exit;
-        end;
         CreateRealPlugin;
     end;
 
@@ -298,18 +289,8 @@ var
     picVefs: TPicture;
     fImage: TImage;
     chkElric, chkCompressTextures: TCheckBox;
-    ini: TIniFile;
     lblMaxTextureSize: TLabel;
-    bCKPEExists: Boolean;
 begin
-    bCKPEExists := false;
-    if FileExists(GamePath + 'CreationKitPlatformExtended.ini') then begin
-        bCKPEExists := true;
-        ini := TIniFile.Create(GamePath + 'CreationKitPlatformExtended.ini');
-        sResolution := LeftStr(ini.ReadString('FaceGen', 'uTintMaskResolution', '2048'), 4);
-        if slResolutions.IndexOf(sResolution) = -1 then slResolutions.Add(sResolution);
-    end
-    else sResolution := '2048';
     frm := TForm.Create(nil);
     try
         frm.Caption := 'Vault-Tec Enhanced FaceGen System';
@@ -352,24 +333,11 @@ begin
         gbMode.Caption := 'Mode';
         gbMode.Height := 54;
 
-        rbFaceGenPreset := TRadioButton.Create(gbMode);
-        rbFaceGenPreset.Name := 'rbFaceGenPreset';
-        rbFaceGenPreset.Parent := gbMode;
-        rbFaceGenPreset.Left := 16;
-        rbFaceGenPreset.Top := 24;
-        rbFaceGenPreset.Width := 100;
-
-        rbFaceGenPreset.Caption := 'Quick Face Fix';
-        rbFaceGenPreset.Hint := 'Copies only NPCs to patch for whom facegen is missing,'
-             + #13#10 + 'which will otherwise produce a missing head,'
-             + #13#10 + 'and sets the "Is CharGen Face Preset" flag.'
-             + #13#10 + 'The game will generate the face, which may cause stutter.';
-        rbFaceGenPreset.ShowHint := True;
         rbFixFaceTextures := TRadioButton.Create(gbMode);
         rbFixFaceTextures.Name := 'rbFixFaceTextures';
         rbFixFaceTextures.Parent := gbMode;
-        rbFixFaceTextures.Left := rbFaceGenPreset.Left + rbFaceGenPreset.Width + 20;
-        rbFixFaceTextures.Top := rbFaceGenPreset.Top;
+        rbFixFaceTextures.Left := 16;
+        rbFixFaceTextures.Top := 24;
         rbFixFaceTextures.Width := 110;
         rbFixFaceTextures.Caption := 'Fix Face Textures';
         rbFixFaceTextures.Hint := 'Automatically extracts all textures and forces them' +
@@ -383,7 +351,7 @@ begin
         rbOnlyMissing.Name := 'rbOnlyMissing';
         rbOnlyMissing.Parent := gbMode;
         rbOnlyMissing.Left := rbFixFaceTextures.Left + rbFixFaceTextures.Width + 20;
-        rbOnlyMissing.Top := rbFaceGenPreset.Top;
+        rbOnlyMissing.Top := rbFixFaceTextures.Top;
         rbOnlyMissing.Width := 150;
         rbOnlyMissing.Caption := 'Generate Missing Faces';
         rbOnlyMissing.Hint := 'Copies only NPCs to patch for whom facegen is missing,'
@@ -397,7 +365,7 @@ begin
         rbAll.Name := 'rbAll';
         rbAll.Parent := gbMode;
         rbAll.Left := rbOnlyMissing.Left + rbOnlyMissing.Width + 20;
-        rbAll.Top := rbFaceGenPreset.Top;
+        rbAll.Top := rbFixFaceTextures.Top;
         rbAll.Width := 150;
         rbAll.Hint := 'Copies all NPCs that use FaceGen to patch'
              + #13#10 + 'to allow regenerating all faces in the game.'
@@ -413,29 +381,9 @@ begin
         gbOptions.Caption := 'Options';
         gbOptions.Height := 54;
 
-        // chkElric := TCheckBox.Create(gbOptions);
-        // chkElric.Parent := gbOptions;
-        // chkElric.Left := 16;
-        // chkElric.Top := 25;
-        // chkElric.Width := 100;
-        // chkElric.Caption := 'Run Elric';
-
-        // chkCompressTextures := TCheckBox.Create(gbOptions);
-        // chkCompressTextures.Parent := gbOptions;
-        // chkCompressTextures.Left := 16;
-        // chkCompressTextures.Top := 25;
-        // chkCompressTextures.Width := 110;
-        // chkCompressTextures.Caption := 'Fix Face Textures';
-        // chkCompressTextures.Hint := 'Automatically extracts all textures and forces them' +
-        //     + #13#10 + 'into compatible format and size to prevent'
-        //     + #13#10 + 'textures failing to load. This requires all'
-        //     + #13#10 + 'installed face textures to be in archives, or it'
-        //     + #13#10 + 'will not work.';
-        // chkCompressTextures.ShowHint := True;
-
         cbResolution := TComboBox.Create(gbOptions);
         cbResolution.Parent := gbOptions;
-        cbResolution.Left := rbFaceGenPreset.Width + 24;
+        cbResolution.Left := rbFixFaceTextures.Width + 24;
         cbResolution.Top := 24;
         cbResolution.Width := 50;
         cbResolution.Style := csDropDownList;
@@ -495,12 +443,8 @@ begin
         frm.Font.Size := 8;
         frm.Height := btnStart.Top + btnStart.Height + btnStart.Height + 25;
 
-        //chkElric.Checked := StrToBool(joConfig.S['RunElric']);
-        //chkCompressTextures.Checked := StrToBool(joConfig.S['CompressTextures']);
-
         edPluginName.Text := sRealPlugin;
 
-        rbFaceGenPreset.OnClick := RadioClick;
         rbFixFaceTextures.OnClick := RadioClick;
         rbOnlyMissing.OnClick := RadioClick;
         rbAll.OnClick := RadioClick;
@@ -514,7 +458,6 @@ begin
 
         sRealPlugin := edPluginName.Text;
         bOnlyMissing := rbOnlyMissing.Checked;
-        bQuickFaceFix := rbFaceGenPreset.Checked;
         bAll := rbAll.Checked;
         sResolution := slResolutions[cbResolution.ItemIndex];
         maxTextureSize := slResolutions[cbMaxTextureSize.ItemIndex];
@@ -934,11 +877,6 @@ begin
         cbMaxTextureSize.Enabled := false;
         edPluginName.Enabled := true;
     end
-    else if rbFaceGenPreset.Checked then begin
-        cbResolution.Enabled := false;
-        cbMaxTextureSize.Enabled := false;
-        edPluginName.Enabled := true;
-    end
     else if rbFixFaceTextures.Checked then begin
         cbResolution.Enabled := false;
         cbMaxTextureSize.Enabled := true;
@@ -997,9 +935,10 @@ begin
     end;
 
     //Check for Creation Kit Platform Extended
-    if FileExists(GamePath() + 'CreationKitPlatformExtended.ini') then begin
-        sCKFixesINI := GamePath() + 'CreationKitPlatformExtended.ini';
-    end
+    if FileExists(GamePath() + 'CreationKitPlatformExtended.ini') then
+        sCKFixesINI := GamePath() + 'CreationKitPlatformExtended.ini'
+    else if FileExists(GamePath() + 'CreationKitPlatformExtended.toml') then
+        sCKFixesINI := GamePath() + 'CreationKitPlatformExtended.toml'
     else begin
         MessageDlg('Please install Creation Kit Platform Extended by perchik71 before continuing.', mtError, [mbOk], 0);
         Result := False;
