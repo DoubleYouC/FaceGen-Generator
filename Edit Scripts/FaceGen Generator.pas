@@ -1384,7 +1384,7 @@ begin
             recordId := GetFileName(r) + #9 + ShortName(r);
             idx := slRace.IndexOf(recordId);
             if idx > -1 then continue;
-            if GetElementEditValues(r, 'DATA\Flags\FaceGen Head') <> '1' then continue;
+            if GetElementEditValues(r, 'DATA\Flags\FaceGen Head') = '0' then continue;
             slRace.Add(recordId);
             tlRace.Add(r);
         end;
@@ -1414,7 +1414,10 @@ begin
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
             idx := tlRace.IndexOf(race);
             if idx = -1 then continue;
-            if GetElementEditValues(r, 'ACBS\Template Flags\Traits') = '1' then continue;
+            if ElementExists(r, 'ACBS\Use Template Actors') then begin
+                if (GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') <> 0) then continue;
+            end
+            else if (GetElementEditValues(r, 'ACBS\Template Flags\Traits') <> 0) then continue;
             if KeywordExists(r, isPlayerChild) then continue;
             if slNPCExceptions.IndexOf(npc_id_string) <> -1 then continue;
             slNpc.Add(npc_id_string);
@@ -1423,7 +1426,7 @@ begin
             joFaces.O['plugins'].O[filename].A['npcs'].Add(npc_id_string);
             bHadFaceGenNPC := true;
             sex := 'Male';
-            if GetElementEditValues(r, 'ACBS\Flags\Female') = '1' then sex := 'Female';
+            if (GetElementEditValues(r, 'ACBS\Flags\Female') <> 0) then sex := 'Female';
             slRaceSex.Add(ShortName(race) + #9 + sex + #9 + ShortName(r));
             joFaces.O['races'].O[ShortName(race)].S[sex] := true;
             joFaces.O['races'].O[ShortName(race)].A[sex + '_NPCs'].Add(ShortName(r));
@@ -1449,9 +1452,6 @@ begin
     for i := 0 to Pred(tlRace.Count) do begin
         ProcessRace(ObjectToElement(tlRace[i]));
     end;
-
-
-
     GetRules;
 
     slNpc := TStringList.Create;
@@ -1608,7 +1608,7 @@ begin
     idx := slEverything.IndexOf(sn);
     if idx > -1 then bAllHere := true;
 
-    relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
+    relativeFormid := '00' + TrimRightChars(IntToHex(FormID(r), 8), 2);
     if bMissingHere or bOnlyMissing or bQuickFaceFix then begin
         if not bAllHere then begin
             if not bAddPreset then begin
@@ -2249,6 +2249,7 @@ var
 begin
     Result := False;
     keywords := ElementByPath(r, 'KWDA');
+    if not Assigned(keywords) then keywords := ElementByPath(r, 'Keywords\KWDA');
     for i := 0 to Pred(ElementCount(keywords)) do begin
         if GetLoadOrderFormID(LinksTo(ElementByIndex(keywords, i))) = GetLoadOrderFormID(keyword) then begin
             Result := True;
@@ -2318,7 +2319,7 @@ begin
         fullName := GetElementEditValues(r, 'FULL') + '     '
     else fullName := '';
     filename := GetFileName(MasterOrSelf(r));
-    relativeFormid := '00' + TrimRightChars(IntToHex(FixedFormID(r), 8), 2);
+    relativeFormid := '00' + TrimRightChars(IntToHex(FormID(r), 8), 2);
     id := fullName + editorId + '     [ ' + filename + '\' + relativeFormid + ' ]';
     tlNPCid.Add(r);
     slNPCid.Add(id);
