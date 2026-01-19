@@ -2203,6 +2203,7 @@ var
     bgem: TwbBGEMFile;
     el: TdfElement;
 begin
+    if not ResourceExists(f) then Exit;
     if RightStr(f, 4) = 'bgsm' then begin
         bgsm := TwbBGSMFile.Create;
         try
