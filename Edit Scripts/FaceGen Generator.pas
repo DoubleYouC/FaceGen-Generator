@@ -1414,6 +1414,7 @@ begin
             race := WinningOverride(LinksTo(ElementByPath(r, 'RNAM')));
             idx := tlRace.IndexOf(race);
             if idx = -1 then continue;
+            if (GetElementEditValues(r, 'ACBS\Flags\Simple Actor') <> 0) then continue;
             if ElementExists(r, 'ACBS\Use Template Actors') then begin
                 if (GetElementEditValues(r, 'ACBS\Use Template Actors\Traits') <> 0) then continue;
             end
