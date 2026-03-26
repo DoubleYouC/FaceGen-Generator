@@ -1609,7 +1609,10 @@ begin
     idx := slEverything.IndexOf(sn);
     if idx > -1 then bAllHere := true;
 
-    relativeFormid := '00' + TrimRightChars(IntToHex(FormID(r), 8), 2);
+    if IsEslFile(FileByName(masterFile)) then
+        relativeFormid := '00000' + TrimRightChars(IntToHex(FormID(r), 8), 5)
+    else
+        relativeFormid := '00' + TrimRightChars(IntToHex(FormID(r), 8), 2);
     if bMissingHere or bOnlyMissing or bQuickFaceFix then begin
         if not bAllHere then begin
             if not bAddPreset then begin
@@ -2321,11 +2324,19 @@ begin
         fullName := GetElementEditValues(r, 'FULL') + '     '
     else fullName := '';
     filename := GetFileName(MasterOrSelf(r));
-    relativeFormid := '00' + TrimRightChars(IntToHex(FormID(r), 8), 2);
+    if IsEslFile(FileByName(filename)) then
+        relativeFormid := '00000' + TrimRightChars(IntToHex(FormID(r), 8), 5)
+    else
+        relativeFormid := '00' + TrimRightChars(IntToHex(FormID(r), 8), 2);
     id := fullName + editorId + '     [ ' + filename + '\' + relativeFormid + ' ]';
     tlNPCid.Add(r);
     slNPCid.Add(id);
     Result := id;
+end;
+
+function IsEslFile(f: IwbFile): boolean;
+begin
+    Result := (GetElementEditValues(ElementByIndex(f, 0), 'Record Header\Record Flags\ESL') = '1');
 end;
 
 procedure ListStringsInStringList(sl: TStringList);
