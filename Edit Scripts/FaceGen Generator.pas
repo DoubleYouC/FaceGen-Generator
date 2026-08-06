@@ -1632,7 +1632,7 @@ begin
             e := WinningOverride(LinksTo(ElementbyIndex(headparts, i)));
             pnam := GetElementEditValues(e, 'PNAM');
             slPNAM.Add(pnam);
-            if not Assigned(e) then AddMessage('Warning: ' + ShortName(e) + ' has a null head part.')
+            if not Assigned(e) then AddMessage('Warning: ' + ShortName(r) + ' has a null head part.')
             else if ProcessHeadPart(e) then begin
                 joFaces.O['NPCsToPatch'].O[facegenMeshPath].S[EditorID(e)] := IntToHex(GetLoadOrderFormID(e), 8);
                 if slBatchNPC.IndexOf(batchLine) = -1 then begin
@@ -1660,7 +1660,7 @@ begin
                 if slPNAM.IndexOf(pnam) <> -1 then continue;
                 slPNAM.Add(pnam);
             end;
-            if not Assigned(e) then AddMessage('Warning: ' + ShortName(e) + ' has a null head part.')
+            if not Assigned(e) then AddMessage('Warning: ' + ShortName(r) + ' has a null head part.')
             else if ProcessHeadPart(e) then begin
                 joFaces.O['NPCsToPatch'].O[facegenMeshPath].S[EditorID(e)] := IntToHex(GetLoadOrderFormID(e), 8);
                 if slBatchNPC.IndexOf(batchLine) = -1 then begin
