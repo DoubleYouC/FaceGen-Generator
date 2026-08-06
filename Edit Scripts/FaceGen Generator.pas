@@ -1474,7 +1474,7 @@ begin
     end;
 end;
 
-function ProcessHeadPart(r: IInterface): boolean;
+function ProcessHeadPart(r: IwbMainRecord): boolean;
 {
     Process Head Parts
 }
@@ -1522,7 +1522,8 @@ begin
         eExtraParts := ElementByPath(r, 'Extra Parts');
         for k := 0 to Pred(ElementCount(eExtraParts)) do begin
             e := WinningOverride(LinksTo(ElementByIndex(eExtraParts, k)));
-            Result := ProcessHeadPart(e);
+            if not Assigned(e) then AddMessage('Warning: ' + ShortName(r) + ' has a null extra part.')
+            else Result := ProcessHeadPart(e);
         end;
     end;
 
@@ -1631,7 +1632,8 @@ begin
             e := WinningOverride(LinksTo(ElementbyIndex(headparts, i)));
             pnam := GetElementEditValues(e, 'PNAM');
             slPNAM.Add(pnam);
-            if ProcessHeadPart(e) then begin
+            if not Assigned(e) then AddMessage('Warning: ' + ShortName(e) + ' has a null head part.')
+            else if ProcessHeadPart(e) then begin
                 joFaces.O['NPCsToPatch'].O[facegenMeshPath].S[EditorID(e)] := IntToHex(GetLoadOrderFormID(e), 8);
                 if slBatchNPC.IndexOf(batchLine) = -1 then begin
                     joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
@@ -1658,7 +1660,8 @@ begin
                 if slPNAM.IndexOf(pnam) <> -1 then continue;
                 slPNAM.Add(pnam);
             end;
-            if ProcessHeadPart(e) then begin
+            if not Assigned(e) then AddMessage('Warning: ' + ShortName(e) + ' has a null head part.')
+            else if ProcessHeadPart(e) then begin
                 joFaces.O['NPCsToPatch'].O[facegenMeshPath].S[EditorID(e)] := IntToHex(GetLoadOrderFormID(e), 8);
                 if slBatchNPC.IndexOf(batchLine) = -1 then begin
                     joFaces.A['LooseFilesToDelete'].Add(wbDataPath + facegenMeshPath);
